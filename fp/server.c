@@ -190,7 +190,7 @@ void register_user(char *username, char *password) {
     }
 
     // Set role to USER by default
-    char role[5] = "USER";
+    char role[6] = "USER";
     if (id == 0) strcpy(role, "ROOT");
 
     // DEBUGGING
@@ -216,7 +216,7 @@ void login_user(char *username, char *password) {
     }
 
     // Loop through id, username, and password
-    int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[5];
+    int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, &namecheck, &passcheck, &role) != EOF) {
         // DEBUGGING
         printf("id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
