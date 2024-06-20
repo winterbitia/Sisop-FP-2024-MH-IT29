@@ -72,6 +72,10 @@ void *handle_client(void *arg);
 void register_user(char *username, char *password);
 void login_user(char *username, char *password);
 
+//===========================================================================================//
+//----------------------------------------- FUNCTIONS ---------------------------------------//
+//===========================================================================================//
+
 //======//
 // MAIN //
 //======//
@@ -94,13 +98,18 @@ int main(int argc, char *argv[]){
             exit(EXIT_FAILURE);
         }
 
+        // Prepare client data
         client_data *client = (client_data *)malloc(sizeof(client_data));
         client->socket_fd = client_fd;
         memset(client->username, 0, MAX_BUFFER);
         memset(client->role, 0, 5);
 
+        // Create thread for client
         pthread_t thread;
         pthread_create(&thread, NULL, handle_client, (void *)client);
+
+        // Daemon sleep
+        sleep(1);
     }
 }
 
@@ -191,6 +200,10 @@ void *handle_client(void *arg){
     pthread_exit(NULL);
 }
 
+//===========================================================================================//
+//---------------------------------------- ACCOUNT HANDLERS ---------------------------------//
+//===========================================================================================//
+
 //===============//
 // REGISTER USER //
 //===============//
@@ -208,15 +221,27 @@ void register_user(char *username, char *password) {
         return;
     }
 
+    // Prepare response
+    char response[MAX_BUFFER];
+
     // Loop through id and username
     int id = 0; char namecheck[MAX_BUFFER];
     while (fscanf(file, "%d,%[^,],%*s", &id, &namecheck) != EOF) {
         // DEBUGGING
         printf("id: %d, name: %s\n", id, namecheck);
+        // sleep(1);
 
         // Fail if username already exists
         if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
             printf("Error: Username already exists\n");
+
+            // Close file
+            fclose(file);
+
+            // Send response to client
+            sprintf(response, "Error: Username %s already exists", username);
+            send(client_fd, response, strlen(response), 0);
             return;
         }
     }
@@ -235,6 +260,10 @@ void register_user(char *username, char *password) {
     // Write to file
     fprintf(file, "%d,%s,%s,%s\n", id+1, username, hash, role);
     fclose(file);
+
+    // Send response to client
+    sprintf(response, "Success: User %s registered", username);
+    send(client_fd, response, strlen(response), 0);
 }
 
 //============//
@@ -258,28 +287,47 @@ void login_user(char *username, char *password) {
         return;
     }
 
+    // Prepare response
+    char response[MAX_BUFFER];
+
     // Loop through id, username, and password
     int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, &namecheck, &passcheck, &role) != EOF) {
         // DEBUGGING
         printf("id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
+        // sleep(1);
 
         // Fail if username and password do not match
         if (strcmp(namecheck, username) == 0) {
             if (strcmp(passcheck, hash) == 0) {
+                // DEBUGGING
                 printf("Success: Username and password match\n");
+
+                // Close file
                 fclose(file);
+
+                // Send response to client
+                sprintf(response, "Success: User %s logged in", username);
+                send(client_fd, response, strlen(response), 0);
                 return;
             }
 
-            // Fail if password does not match
+            // DEBUGGING
             printf("Error: Password does not match\n");
+
+            // Fail if password does not match
+            sprintf(response, "Error: Password does not match");
+            send(client_fd, response, strlen(response), 0);
             fclose(file);
             return;
         }
     }
 
-    // Fail if username does not exist
+    // DEBUGGING
     printf("Error: Username does not exist\n");
+
+    // Send response to client
+    sprintf(response, "Error: Username does not exist");
+    send(client_fd, response, strlen(response), 0);
     fclose(file);
 }
