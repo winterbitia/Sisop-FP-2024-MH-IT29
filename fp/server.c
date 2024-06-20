@@ -1,3 +1,9 @@
+/*
+    IMPORTANT INFORMATION:
+    Compile the server with the following command:
+    gcc server.c -o server -lcrypt
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +27,7 @@
 #define PORT 8080
 #define MAX_CLIENTS 10
 #define MAX_BUFFER 1028
+#define HASHCODE "skibiditoiletrizzgyattsigma"
 int server_fd, client_fd;
 struct sockaddr_in address;
 socklen_t addrlen = sizeof(address);
@@ -167,6 +174,7 @@ void *handle_client(void *arg){
 //===============//
 
 void register_user(char *username, char *password) {
+    // Open file
     char *filename = "users.csv";
     FILE *file = fopen(filename, "a+");
 
@@ -189,15 +197,19 @@ void register_user(char *username, char *password) {
         }
     }
 
+    // Hash password
+    char hash[MAX_BUFFER];
+    strcpy(hash,crypt(password, HASHCODE));
+
     // Set role to USER by default
     char role[6] = "USER";
     if (id == 0) strcpy(role, "ROOT");
 
     // DEBUGGING
-    printf("id: %d, name: %s, pass: %s, role: %s\n", id+1, username, password, role);
+    printf("id: %d, name: %s, pass: %s, role: %s\n", id+1, username, hash, role);
     
     // Write to file
-    fprintf(file, "%d,%s,%s,%s\n", id+1, username, password, role);
+    fprintf(file, "%d,%s,%s,%s\n", id+1, username, hash, role);
     fclose(file);
 }
 
@@ -206,6 +218,11 @@ void register_user(char *username, char *password) {
 //============//
 
 void login_user(char *username, char *password) {
+    // Hash password from input
+    char hash[MAX_BUFFER];
+    strcpy(hash,crypt(password, HASHCODE));
+    
+    // Open file
     char *filename = "users.csv";
     FILE *file = fopen(filename, "r");
 
@@ -223,7 +240,7 @@ void login_user(char *username, char *password) {
 
         // Fail if username and password do not match
         if (strcmp(namecheck, username) == 0) {
-            if (strcmp(passcheck, password) == 0) {
+            if (strcmp(passcheck, hash) == 0) {
                 printf("Success: Username and password match\n");
                 fclose(file);
                 return;
