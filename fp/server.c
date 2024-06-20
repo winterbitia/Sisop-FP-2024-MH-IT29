@@ -1,7 +1,18 @@
 /*
-    IMPORTANT INFORMATION:
+     ___  ___ _ ____   _____ _ __ ___
+    / __|/ _ \ '__\ \ / / _ \ '__/ __|
+    \__ \  __/ |   \ V /  __/ | | (__
+    |___/\___|_|    \_/ \___|_|(_)___|
+
+    COMPILING INSTRUCTIONS:
     Compile the server with the following command:
-    gcc server.c -o server -lcrypt
+        gcc server.c -o <file output> -lcrypt
+
+    COMMANDS:
+    The server will run in the background by default, as a daemon process.
+        ./<file output>
+    This will run the server in the foreground, allowing you to see the output.
+        ./<file output> -f
 */
 
 #include <stdio.h>
@@ -24,10 +35,16 @@
 // GLOBALS //
 //=========//
 
+// Define
 #define PORT 8080
 #define MAX_CLIENTS 10
 #define MAX_BUFFER 1028
-#define HASHCODE "skibiditoiletrizzgyattsigma"
+#define HASHCODE "sk1b1d1_to1l3t_r1zz_gy477_s1gm4"
+
+// Misc variables
+char cwd[MAX_BUFFER];
+
+// Socket variables
 int server_fd, client_fd;
 struct sockaddr_in address;
 socklen_t addrlen = sizeof(address);
@@ -58,12 +75,17 @@ void login_user(char *username, char *password);
 //======//
 // MAIN //
 //======//
-int main(){
-    // Start daemon
-    // daemonize();
+int main(int argc, char *argv[]){
+    // Get current directory
+    getcwd(cwd, sizeof(cwd));    
 
     // Start server
     start_server();
+
+    // Foreground handling
+    if (argc > 1 && strcmp(argv[1], "-f") == 0){
+        printf("Server: running in foreground!\n");
+    } else daemonize();
 
     // Accept incoming connections
     while (1){
@@ -125,7 +147,7 @@ void start_server(){
     }
 
     // DEBUGGING
-    printf("Server started on port %d\n", PORT);
+    printf("Server: started on port %d\n", PORT);
 }
 
 //===============//
@@ -175,7 +197,9 @@ void *handle_client(void *arg){
 
 void register_user(char *username, char *password) {
     // Open file
-    char *filename = "users.csv";
+    char filename[MAX_BUFFER];
+    strcpy(filename, cwd);
+    strcat(filename, "/users.csv");
     FILE *file = fopen(filename, "a+");
 
     // Fail if file cannot be opened
@@ -223,7 +247,9 @@ void login_user(char *username, char *password) {
     strcpy(hash,crypt(password, HASHCODE));
     
     // Open file
-    char *filename = "users.csv";
+    char filename[MAX_BUFFER];
+    strcpy(filename, cwd);
+    strcat(filename, "/users.csv");
     FILE *file = fopen(filename, "r");
 
     // Fail if file cannot be opened
