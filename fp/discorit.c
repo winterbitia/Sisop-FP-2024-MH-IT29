@@ -65,15 +65,18 @@ void handle_server(const char *buffer, char *username) {
 // MAIN //
 //======//
 int main(int argc, char *argv[]) {
-    // Check if arguments are valid
+    // Validate arguments:
     if (argc < 5) {
-        printf("Usage: ./discorit [REGISTER/LOGIN] <username> -p <password>", argv[0]);
+        printf("Usage: ./discorit [REGISTER/LOGIN] <username> -p <password>"
+               "\n(not enough arguments)");
         return 1;
-    }
-
-    // Exit if command is invalid
-    if (strcmp(argv[1], "REGISTER") != 0 && strcmp(argv[1], "LOGIN") != 0) {
-        printf("Usage: ./discorit [REGISTER/LOGIN] <username> -p <password>");
+  } if (strcmp(argv[1], "REGISTER") != 0 && strcmp(argv[1], "LOGIN") != 0) {
+        printf("Usage: ./discorit [REGISTER/LOGIN] <username> -p <password>"
+               "\n(invalid command)");
+        return 1;
+  } if (strcmp(argv[3], "-p") != 0) {
+        printf("Usage: ./discorit REGISTER <username> -p <password>"
+                "\n(missing -p flag)");
         return 1;
     }
 
@@ -90,12 +93,14 @@ int main(int argc, char *argv[]) {
 
     // Register user
     if (strcmp(argv[1], "REGISTER") == 0) {
-        if (strcmp(argv[3], "-p") != 0) {
-            printf("Usage: ./discorit REGISTER <username> -p <password>");
-            return 1;
-        }
-        
         sprintf(buffer, "REGISTER,%s,%s", username, password);        
+
+        // DEBUGGING
+        printf("Sending: %s\n", buffer);
+    }
+
+    if (strcmp(argv[1], "LOGIN") == 0) {
+        sprintf(buffer, "LOGIN,%s,%s", username, password);
 
         // DEBUGGING
         printf("Sending: %s\n", buffer);

@@ -42,10 +42,11 @@ typedef struct {
 // Main server
 void daemonize();
 void start_server();
-
-// Handlers
 void *handle_client(void *arg);
+
+// Account Handlers
 void register_user(char *username, char *password);
+void login_user(char *username, char *password);
 
 //======//
 // MAIN //
@@ -152,7 +153,7 @@ void *handle_client(void *arg){
 
     // Login user
     else if (strcmp(command, "LOGIN") == 0){
-        // login_user(username, password);
+        login_user(username, password);
     }
 
     // Close client connection
@@ -191,8 +192,51 @@ void register_user(char *username, char *password) {
     // Set role to USER by default
     char role[5] = "USER";
     if (id == 0) strcpy(role, "ROOT");
+
+    // DEBUGGING
+    printf("id: %d, name: %s, pass: %s, role: %s\n", id+1, username, password, role);
     
     // Write to file
     fprintf(file, "%d,%s,%s,%s\n", id+1, username, password, role);
+    fclose(file);
+}
+
+//============//
+// LOGIN UsER //
+//============//
+
+void login_user(char *username, char *password) {
+    char *filename = "users.csv";
+    FILE *file = fopen(filename, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        printf("Error: Unable to open file\n");
+        return;
+    }
+
+    // Loop through id, username, and password
+    int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[5];
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, &namecheck, &passcheck, &role) != EOF) {
+        // DEBUGGING
+        printf("id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
+
+        // Fail if username and password do not match
+        if (strcmp(namecheck, username) == 0) {
+            if (strcmp(passcheck, password) == 0) {
+                printf("Success: Username and password match\n");
+                fclose(file);
+                return;
+            }
+
+            // Fail if password does not match
+            printf("Error: Password does not match\n");
+            fclose(file);
+            return;
+        }
+    }
+
+    // Fail if username does not exist
+    printf("Error: Username does not exist\n");
     fclose(file);
 }
