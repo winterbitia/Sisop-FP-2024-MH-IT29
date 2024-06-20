@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <crypt.h>
 #include <stdbool.h>
 #include <arpa/inet.h>
 #include <errno.h>
