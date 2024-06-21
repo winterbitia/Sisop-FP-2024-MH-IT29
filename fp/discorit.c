@@ -97,7 +97,7 @@ int handle_command(const char *buffer) {
         printf("%s\n", message);
         return 0;
     }
-    else if (strcmp(type, "YES") == 0){
+    else if (strcmp(type, "KEY") == 0){
         printf("%s\n", message);
         return 1;
     }
@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
                 buffer[strcspn(buffer, "\n")] = '\0';
 
                 // Force client exit command
-                if (strcmp(buffer, "CLIENT_FORCEQUIT") == 0) {
+                if (strcmp(buffer, "FORCEQUIT") == 0) {
                     printf("Force quitting client...\n");
                     close(server_fd);
                     return 0;
@@ -190,8 +190,16 @@ int main(int argc, char *argv[]) {
                 // DEBUGGING
                 printf("Sending: %s\n", buffer);
 
-                // Handle command
-                if (handle_command(buffer) == 2) return 0;
+                // Handle command branching
+                int res = handle_command(buffer);
+
+                // Check if user wants to quit
+                if (res == 2)
+                    return 0;
+
+                // Check if user wants to join a channel
+                if (res == 1)
+                    printf("imagine me asking for a key send\n");
             }
         }
     }
