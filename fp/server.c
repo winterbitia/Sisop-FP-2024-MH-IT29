@@ -118,17 +118,31 @@ int main(int argc, char *argv[]){
 //==================//
 
 void daemonize(){
+    // Fork off the parent process
     pid_t pid, sid;
     pid = fork();
     if (pid < 0) exit(EXIT_FAILURE);
     if (pid > 0) exit(EXIT_SUCCESS);
+
+    // Change the file mode mask
     umask(0);
+
+    // Create a new SID for the child process
     sid = setsid();
     if (sid < 0) exit(EXIT_FAILURE);
+
+    // Change the current working directory
     if ((chdir("/")) < 0) exit(EXIT_FAILURE);
+
+    // Close out the standard file descriptors
     close(STDIN_FILENO);
     close(STDOUT_FILENO);
     close(STDERR_FILENO);
+
+    // Redirect standard file descriptors to /dev/null
+    open("/dev/null", O_RDONLY); // stdin
+    open("/dev/null", O_WRONLY); // stdout
+    open("/dev/null", O_WRONLY); // stderr
 }
 
 void start_server(){
@@ -226,7 +240,7 @@ void register_user(char *username, char *password) {
 
     // Loop through id and username
     int id = 0; char namecheck[MAX_BUFFER];
-    while (fscanf(file, "%d,%[^,],%*s", &id, &namecheck) != EOF) {
+    while (fscanf(file, "%d,%[^,],%*s", &id, namecheck) == 2) {
         // DEBUGGING
         printf("id: %d, name: %s\n", id, namecheck);
         // sleep(1);
@@ -251,8 +265,9 @@ void register_user(char *username, char *password) {
     strcpy(hash,crypt(password, HASHCODE));
 
     // Set role to USER by default
-    char role[6] = "USER";
+    char role[6];
     if (id == 0) strcpy(role, "ROOT");
+    else         strcpy(role, "USER");
 
     // DEBUGGING
     printf("id: %d, name: %s, pass: %s, role: %s\n", id+1, username, hash, role);
@@ -292,7 +307,7 @@ void login_user(char *username, char *password) {
 
     // Loop through id, username, and password
     int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
-    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, &namecheck, &passcheck, &role) != EOF) {
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
         // DEBUGGING
         printf("id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
         // sleep(1);
