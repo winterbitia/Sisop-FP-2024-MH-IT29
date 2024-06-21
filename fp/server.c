@@ -57,6 +57,8 @@ typedef struct {
     // Client details
     char username[MAX_BUFFER];
     char role[5];
+    char channel[100];
+    char room[100];
 } client_data;
 
 //=================//
@@ -67,13 +69,14 @@ typedef struct {
 void daemonize();
 void start_server();
 void *handle_client(void *arg);
+void  handle_input(void *arg);
 
 // Account Handlers
 void register_user(char *username, char *password);
-void login_user(char *username, char *password);
+int  login_user(char *username, char *password, client_data *client);
 
 //===========================================================================================//
-//----------------------------------------- FUNCTIONS ---------------------------------------//
+//----------------------------------------- SERVER ------------------------------------------//
 //===========================================================================================//
 
 //======//
@@ -173,6 +176,10 @@ void start_server(){
     printf("Server: started on port %d\n", PORT);
 }
 
+//===========================================================================================//
+//---------------------------------------- HANDLER ------------------------------------------//
+//===========================================================================================//
+
 //===============//
 // HANDLE CLIENT //
 //===============//
@@ -191,31 +198,99 @@ void *handle_client(void *arg){
     }
 
     // Parse data from client
-    char *command = strtok(buffer, ",");
-    char *username = strtok(NULL, ",");
-    char *password = strtok(NULL, ",");
+    char *command = strtok(buffer, " ");
+    char *username = strtok(NULL, " ");
+    char *password = strtok(NULL, " ");
 
     // DEBUGGING
     printf("command: %s, username: %s, password: %s\n", command, username, password);
 
     // Register user
     if (strcmp(command, "REGISTER") == 0){
+        // Call register user function
         register_user(username, password);
+
+        // Close client connection
+        close(client_fd);
+        free(client);
+        pthread_exit(NULL);
+        return NULL;
     }
 
     // Login user
     else if (strcmp(command, "LOGIN") == 0){
-        login_user(username, password);
-    }
+        // Call login user function
+        if (!login_user(username, password, client)){
+            // Close client connection when login fails
+            close(client_fd);
+            free(client);
+            pthread_exit(NULL);
+            return NULL;
+        }
 
-    // Close client connection
-    close(client_fd);
-    free(client);
-    pthread_exit(NULL);
+        // DEBUGGING
+        printf("LOGIN: %s\n", username);
+
+        // Call handle input function
+        handle_input(client);
+    }
+}
+
+//==============//
+// HANDLE INPUT //
+//==============//
+
+void handle_input(void *arg){
+    client_data *client = (client_data *)arg;
+    int client_fd = client->socket_fd;
+
+    char buffer[MAX_BUFFER];
+    char response[MAX_BUFFER];
+
+    while(1){
+        // DEBUGGING
+        printf("Input: waiting %s\n", client->username);
+
+        // Clear buffer
+        memset(buffer, 0, MAX_BUFFER);
+
+        // Receive data from client
+        if (recv(client_fd, buffer, MAX_BUFFER, 0) < 0){
+            perror("recv failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // Prepare parse data from client
+        char *command = strtok(buffer, " ");
+
+        if (strcmp(command, "FORCEQUIT") == 0){
+            // DEBUGGING
+            printf("Force quit: %s\n", client->username);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER);
+            sprintf(response, "QUIT,Force quitting from server...");
+            send(client_fd, response, strlen(response), 0);
+
+            // Close client connection
+            close(client_fd);
+            free(client);
+            pthread_exit(NULL);
+            return;
+        } else {
+            // DEBUGGING
+            printf("Error: Command not found\n");
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER);
+            sprintf(response, "MSG,Error: Command not found");
+            send(client_fd, response, strlen(response), 0);
+        }
+    }
 }
 
 //===========================================================================================//
-//---------------------------------------- ACCOUNT HANDLERS ---------------------------------//
+//----------------------------------------- ACCOUNTS ----------------------------------------//
 //===========================================================================================//
 
 //===============//
@@ -254,7 +329,7 @@ void register_user(char *username, char *password) {
             fclose(file);
 
             // Send response to client
-            sprintf(response, "Error: Username %s already exists", username);
+            sprintf(response, "MSG,Error: Username %s already exists", username);
             send(client_fd, response, strlen(response), 0);
             return;
         }
@@ -277,7 +352,7 @@ void register_user(char *username, char *password) {
     fclose(file);
 
     // Send response to client
-    sprintf(response, "Success: User %s registered", username);
+    sprintf(response, "MSG,Success: User %s registered", username);
     send(client_fd, response, strlen(response), 0);
 }
 
@@ -285,7 +360,7 @@ void register_user(char *username, char *password) {
 // LOGIN UsER //
 //============//
 
-void login_user(char *username, char *password) {
+int login_user(char *username, char *password, client_data *client) {
     // Hash password from input
     char hash[MAX_BUFFER];
     strcpy(hash,crypt(password, HASHCODE));
@@ -299,7 +374,7 @@ void login_user(char *username, char *password) {
     // Fail if file cannot be opened
     if (file == NULL) {
         printf("Error: Unable to open file\n");
-        return;
+        return 0;
     }
 
     // Prepare response
@@ -310,7 +385,6 @@ void login_user(char *username, char *password) {
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
         // DEBUGGING
         printf("id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
-        // sleep(1);
 
         // Fail if username and password do not match
         if (strcmp(namecheck, username) == 0) {
@@ -318,23 +392,25 @@ void login_user(char *username, char *password) {
                 // DEBUGGING
                 printf("Success: Username and password match\n");
 
-                // Close file
+                // Finishing up
+                strcpy(client->username, username);
+                strcpy(client->role, role);
                 fclose(file);
 
                 // Send response to client
-                sprintf(response, "Success: User %s logged in", username);
+                sprintf(response, "LOGIN,Welcome to DiscorIT!\n");
                 send(client_fd, response, strlen(response), 0);
-                return;
+                return 1;
             }
 
             // DEBUGGING
             printf("Error: Password does not match\n");
 
             // Fail if password does not match
-            sprintf(response, "Error: Password does not match");
+            sprintf(response, "MSG,Error: Password does not match");
             send(client_fd, response, strlen(response), 0);
             fclose(file);
-            return;
+            return 0;
         }
     }
 
@@ -342,7 +418,8 @@ void login_user(char *username, char *password) {
     printf("Error: Username does not exist\n");
 
     // Send response to client
-    sprintf(response, "Error: Username does not exist");
+    sprintf(response, "MSG,Error: Username does not exist");
     send(client_fd, response, strlen(response), 0);
     fclose(file);
+    return 0;
 }
