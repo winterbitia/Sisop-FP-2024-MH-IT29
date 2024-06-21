@@ -41,11 +41,13 @@
 #define MAX_BUFFER 1028
 #define HASHCODE "sk1b1d1_to1l3t_r1zz_gy477_s1gm4"
 
-// Misc variables
+// Dir variables
 char cwd[MAX_BUFFER];
+char users_csv[MAX_BUFFER];
+char channels_csv[MAX_BUFFER];
 
 // Socket variables
-int server_fd, client_fd;
+int server_fd, gclient_fd;
 struct sockaddr_in address;
 socklen_t addrlen = sizeof(address);
 
@@ -55,6 +57,7 @@ typedef struct {
     int socket_fd;
     struct sockaddr_in address;
     // Client details
+    int id;
     char username[MAX_BUFFER];
     char role[5];
     char channel[100];
@@ -72,8 +75,14 @@ void *handle_client(void *arg);
 void  handle_input(void *arg);
 
 // Account Handlers
-void register_user(char *username, char *password);
+void register_user(char *username, char *password, client_data *client);
 int  login_user(char *username, char *password, client_data *client);
+
+// Channel Handlers
+void make_directory(char *path);
+void admin_init_channel(char *path_auth, client_data *client);
+void create_channel(char *channel, char *key, client_data *client);
+void list_channels(client_data *client);
 
 //===========================================================================================//
 //----------------------------------------- SERVER ------------------------------------------//
@@ -85,6 +94,8 @@ int  login_user(char *username, char *password, client_data *client);
 int main(int argc, char *argv[]){
     // Get current directory
     getcwd(cwd, sizeof(cwd));    
+    sprintf(users_csv, "%s/users.csv", cwd);
+    sprintf(channels_csv, "%s/channels.csv", cwd);
 
     // Start server
     start_server();
@@ -96,14 +107,14 @@ int main(int argc, char *argv[]){
 
     // Accept incoming connections
     while (1){
-        if ((client_fd = accept(server_fd, (struct sockaddr *)&address, &addrlen)) < 0){
+        if ((gclient_fd = accept(server_fd, (struct sockaddr *)&address, &addrlen)) < 0){
             perror("accept failed");
             exit(EXIT_FAILURE);
         }
 
         // Prepare client data
         client_data *client = (client_data *)malloc(sizeof(client_data));
-        client->socket_fd = client_fd;
+        client->socket_fd = gclient_fd;
         memset(client->username, 0, MAX_BUFFER);
         memset(client->role, 0, 5);
 
@@ -208,7 +219,7 @@ void *handle_client(void *arg){
     // Register user
     if (strcmp(command, "REGISTER") == 0){
         // Call register user function
-        register_user(username, password);
+        register_user(username, password, client);
 
         // Close client connection
         close(client_fd);
@@ -263,13 +274,13 @@ void handle_input(void *arg){
         // Prepare parse data from client
         char *command = strtok(buffer, " ");
 
-        if (strcmp(command, "FORCEQUIT") == 0){
+        if (strcmp(command, "QUIT") == 0){
             // DEBUGGING
             printf("Force quit: %s\n", client->username);
 
             // Send response to client
             memset(response, 0, MAX_BUFFER);
-            sprintf(response, "QUIT,Force quitting from server...");
+            sprintf(response, "QUIT,Gracefully quitting from server...");
             send(client_fd, response, strlen(response), 0);
 
             // Close client connection
@@ -277,6 +288,77 @@ void handle_input(void *arg){
             free(client);
             pthread_exit(NULL);
             return;
+            
+ } else if (strcmp(command, "CREATE") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("Error: Invalid command\n");
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("command: %s, type: %s", command, type);
+
+            // Create channel
+            if (strcmp(type, "CHANNEL") == 0){
+                // Parse data from client
+                char *channel = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *key = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (channel == NULL || key == NULL || strcmp(flag, "-k") != 0){
+                    // DEBUGGING
+                    printf("Error: Invalid command\n");
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("channel: %s, key: %s\n", channel, key);
+
+                // Call create channel function
+                create_channel(channel, key, client);
+            }
+
+ } else if (strcmp(command, "LIST") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("Error: Invalid command\n");
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("command: %s, type: %s\n", command, type);
+
+            // List channels
+            if (strcmp(type, "CHANNEL") == 0){
+                // Call list channels function
+                list_channels(client);
+            }
+
         } else {
             // DEBUGGING
             printf("Error: Command not found\n");
@@ -297,21 +379,25 @@ void handle_input(void *arg){
 // REGISTER USER //
 //===============//
 
-void register_user(char *username, char *password) {
-    // Open file
-    char filename[MAX_BUFFER];
-    strcpy(filename, cwd);
-    strcat(filename, "/users.csv");
-    FILE *file = fopen(filename, "a+");
+void register_user(char *username, char *password, client_data *client) {
+    int client_fd = client->socket_fd;
 
-    // Fail if file cannot be opened
-    if (file == NULL) {
-        printf("Error: Unable to open file\n");
-        return;
-    }
+    // Open file
+    FILE *file = fopen(users_csv, "a+");
 
     // Prepare response
     char response[MAX_BUFFER];
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("Error: Unable to open file\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 
     // Loop through id and username
     int id = 0; char namecheck[MAX_BUFFER];
@@ -361,24 +447,28 @@ void register_user(char *username, char *password) {
 //============//
 
 int login_user(char *username, char *password, client_data *client) {
+    int client_fd = client->socket_fd;
+
     // Hash password from input
     char hash[MAX_BUFFER];
     strcpy(hash,crypt(password, HASHCODE));
     
     // Open file
-    char filename[MAX_BUFFER];
-    strcpy(filename, cwd);
-    strcat(filename, "/users.csv");
-    FILE *file = fopen(filename, "r");
-
-    // Fail if file cannot be opened
-    if (file == NULL) {
-        printf("Error: Unable to open file\n");
-        return 0;
-    }
+    FILE *file = fopen(users_csv, "r");
 
     // Prepare response
     char response[MAX_BUFFER];
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("Error: Unable to open file\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return 0;
+    }
 
     // Loop through id, username, and password
     int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
@@ -393,6 +483,7 @@ int login_user(char *username, char *password, client_data *client) {
                 printf("Success: Username and password match\n");
 
                 // Finishing up
+                client->id = id;
                 strcpy(client->username, username);
                 strcpy(client->role, role);
                 fclose(file);
@@ -422,4 +513,166 @@ int login_user(char *username, char *password, client_data *client) {
     send(client_fd, response, strlen(response), 0);
     fclose(file);
     return 0;
+}
+
+//===========================================================================================//
+//----------------------------------------- CHANNELS ----------------------------------------//
+//===========================================================================================//
+
+//================//
+// MAKE DIRECTORY //
+//================//
+
+void make_directory(char *path) {
+    // Create directory
+    if (mkdir(path, 0777) == -1)
+    // Fail if directory cannot be created
+    if (errno != EEXIST) {
+        printf("Error: Unable to create directory\n");
+        return;
+    }
+}
+
+//====================//
+// INIT CHANNEL ADMIN //
+//====================//
+
+void admin_init_channel(char *path_auth, client_data *client){
+    // Parse users.csv
+    FILE *file = fopen(users_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        printf("Error: Unable to open file\n");
+        return;
+    }
+
+    // Loop through id
+    int id;
+    while (fscanf(file, "%d,%*[^,],%*[^,],%*s", &id) == 1) {
+        // DEBUGGING
+        printf("id: %d\n", id);
+
+        // Make sure admin id exists
+        if (client->id == id) {
+            // Write to auth.csv
+            FILE *file_auth = fopen(path_auth, "w");
+            fprintf(file_auth, "%d,%s,ADMIN\n", id, client->username);
+            fclose(file_auth);
+        }
+    }
+
+    // Close file
+    fclose(file);
+}
+
+//================//
+// CREATE CHANNEL //
+//================//
+
+void create_channel(char *channel, char *key, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Open file
+    FILE *file = fopen(channels_csv, "a+");
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("Error: Unable to open file\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id and channel
+    int id = 0; char namecheck[MAX_BUFFER];
+    while (fscanf(file, "%d,%[^,],%*s", &id, namecheck) == 2) {
+        // DEBUGGING
+        printf("id: %d, name: %s\n", id, namecheck);
+        // sleep(1);
+
+        // Fail if channel already exists
+        if (strcmp(namecheck, channel) == 0) {
+            // DEBUGGING
+            printf("Error: Channel already exists\n");
+
+            // Close file
+            fclose(file);
+
+            // Send response to client
+            sprintf(response, "MSG,Error: Channel %s already exists", channel);
+            send(client_fd, response, strlen(response), 0);
+            return;
+        }
+    }
+
+    // Hash key
+    char hash[MAX_BUFFER];
+    strcpy(hash,crypt(key, HASHCODE));
+
+    // Write to file
+    fprintf(file, "%d,%s,%s\n", id+1, channel, hash);
+    fclose(file);
+
+    // Create directory and all related preparations
+    char path[MAX_BUFFER], path_admin[MAX_BUFFER], path_auth[MAX_BUFFER];
+    sprintf(path, "%s/%s", cwd, channel);
+    sprintf(path_admin, "%s/%s/admin", cwd, channel);
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
+    make_directory(path);
+    make_directory(path_admin);
+    admin_init_channel(path_auth, client);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Channel %s created", channel);
+    send(client_fd, response, strlen(response), 0);
+}
+
+//===============//
+// LIST CHANNELS //
+//===============//
+
+void list_channels(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Open file
+    FILE *file = fopen(channels_csv, "r");
+
+    // Prepare response
+    char response[MAX_BUFFER];
+    sprintf(response, "MSG,");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("Error: Unable to open file\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id and channel
+    int id = 1; char channel[MAX_BUFFER];
+    while (fscanf(file, "%d,%[^,],%*s", &id, channel) == 2) {
+        // DEBUGGING
+        printf("id: %d, name: %s\n", id, channel);
+
+        // Concatenate response
+        if (id > 1) strcat(response, " ");
+        strcat(response, channel);
+    }
+
+    // Close file
+    fclose(file);
+
+    // Send response to client
+    send(client_fd, response, strlen(response), 0);
 }
