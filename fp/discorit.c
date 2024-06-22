@@ -190,7 +190,7 @@ void key_request(char *buffer) {
     sprintf(buffer, "KEY %s", key);
 
     // DEBUGGING
-    printf("Sending: %s\n", buffer);
+    // printf("Sending: %s\n", buffer);
 
     // Send to server
     handle_command(buffer);
@@ -231,7 +231,7 @@ int main(int argc, char *argv[]) {
         sprintf(buffer, "REGISTER %s %s", username, password);        
 
         // DEBUGGING
-        printf("Sending: %s\n", buffer);
+        // printf("Sending: %s\n", buffer);
 
         // Send to server and exit
         handle_account(buffer);
@@ -245,7 +245,7 @@ int main(int argc, char *argv[]) {
         sprintf(buffer, "LOGIN %s %s", username, password);
 
         // DEBUGGING
-        printf("Sending: %s\n", buffer);
+        // printf("Sending: %s\n", buffer);
 
         // Login check
         if (handle_account(buffer) == 1)
@@ -257,22 +257,14 @@ int main(int argc, char *argv[]) {
                 printf("[%s/%s] ", username, channel);
             else 
                 printf("[%s] ", username);
-            
 
             // Get user input
             memset(buffer, 0, MAX_BUFFER);
             fgets(buffer, MAX_BUFFER, stdin);
             buffer[strcspn(buffer, "\n")] = '\0';
 
-            // Force client exit command
-            if (strcmp(buffer, "FQUIT") == 0) {
-                printf("Force quitting client...\n");
-                close(server_fd);
-                return 0;
-            }
-
             // DEBUGGING
-            printf("Sending: %s\n", buffer);
+            // printf("Sending: %s\n", buffer);
 
             // Handle command branching
             int res = handle_command(buffer);
@@ -281,7 +273,7 @@ int main(int argc, char *argv[]) {
             if (res == 2)
                 return 0;
 
-            // Check if user wants to join a channel
+            // Check if user needs to input key
             if (res == 1)
                 key_request(buffer);
         }
