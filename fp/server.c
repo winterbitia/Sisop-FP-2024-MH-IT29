@@ -295,7 +295,7 @@ void handle_input(void *arg){
 
             // Send response to client
             memset(response, 0, MAX_BUFFER);
-            sprintf(response, "QUIT,Gracefully quitting from server...");
+            sprintf(response, "QUIT,Gracefully disconnecting from server...");
             send(client_fd, response, strlen(response), 0);
 
             // Close client connection
@@ -319,7 +319,7 @@ void handle_input(void *arg){
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
-                sprintf(response, "MSG,Error: Invalid command");
+                sprintf(response, "MSG,Error: Invalid command (missing create type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
             }
@@ -335,13 +335,22 @@ void handle_input(void *arg){
                 char *key = strtok(NULL, " ");
 
                 // Check if command is valid
-                if (channel == NULL || key == NULL || strcmp(flag, "-k") != 0){
+                if (channel == NULL || key == NULL){
                     // DEBUGGING
-                    printf("Error: Invalid command\n");
+                    printf("Error: Invalid command (missing name/key)\n");
 
                     // Send response to client
                     memset(response, 0, MAX_BUFFER);
-                    sprintf(response, "MSG,Error: Invalid command");
+                    sprintf(response, "MSG,Error: Invalid command (missing channel name or key)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                } else if (strcmp(flag, "-k") != 0){
+                    // DEBUGGING
+                    printf("Error: Invalid flag statement\n");
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing -k flag)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
                 }
@@ -358,11 +367,11 @@ void handle_input(void *arg){
                 // Check if command is valid
                 if (room == NULL){
                     // DEBUGGING
-                    printf("Error: Invalid command\n");
+                    printf("Error: Invalid command (missing room name)\n");
 
                     // Send response to client
                     memset(response, 0, MAX_BUFFER);
-                    sprintf(response, "MSG,Error: Invalid command");
+                    sprintf(response, "MSG,Error: Invalid command (missing room name)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
                 }
@@ -374,11 +383,11 @@ void handle_input(void *arg){
                 create_room(room, client);
             } else {
                 // DEBUGGING
-                printf("Error: Create command not found\n");
+                printf("Error: Create type not found\n");
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
-                sprintf(response, "MSG,Error: Create command not found");
+                sprintf(response, "MSG,Error: Create type not found");
                 send(client_fd, response, strlen(response), 0);
             }
 
@@ -393,7 +402,7 @@ void handle_input(void *arg){
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
-                sprintf(response, "MSG,Error: Invalid command");
+                sprintf(response, "MSG,Error: Invalid command (missing list type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
             }
@@ -411,6 +420,14 @@ void handle_input(void *arg){
             } else if (strcmp(type, "USER") == 0){
                 // Call list user function
                 list_user(client);
+            } else {
+                // DEBUGGING
+                printf("Error: List type not found\n");
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: List type not found");
+                send(client_fd, response, strlen(response), 0);
             }
 
  } else if (strcmp(command, "JOIN") == 0){
@@ -424,7 +441,7 @@ void handle_input(void *arg){
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
-                sprintf(response, "MSG,Error: Invalid command");
+                sprintf(response, "MSG,Error: Invalid command (missing target)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
             }
@@ -1095,6 +1112,17 @@ void create_room(char *room, client_data *client) {
     // Close file
     fclose(file);
 
+    // Check if room name is valid
+    if (strcmp(room, "admin") == 0) {
+        // DEBUGGING
+        printf("Error: Invalid room name\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Invalid room name");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
     // Create room directory 
     char path_room[MAX_BUFFER];
     sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
@@ -1134,8 +1162,6 @@ void list_room(client_data *client) {
         // Prepare response
         char response[MAX_BUFFER];
         sprintf(response, "MSG,Error: User is not in a channel");
-
-        // Send response to client
         send(client_fd, response, strlen(response), 0);
         return;
     }
@@ -1169,14 +1195,18 @@ void list_room(client_data *client) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
         // DEBUGGING
-        printf("name: %s, type: %s\n", entry->d_name, entry->d_type);
+        printf("name: %s, type: %d\n", entry->d_name, entry->d_type);
 
         // Skip admin directory
         if (strcmp(entry->d_name, "admin") == 0) continue;
 
+        // Prepare entry path
+        char entry_path[MAX_BUFFER];
+        sprintf(entry_path, "%s/%s", path_channel, entry->d_name);
+
         // Check if entry is a directory to be listed
         struct stat statbuf;
-        if (stat(entry->d_name, &statbuf) == -1) continue;
+        if (stat(entry_path, &statbuf) == -1) continue;
         if (S_ISDIR(statbuf.st_mode)) {
             // Increment rooms found
             rooms_found++;
