@@ -10,7 +10,7 @@
 
 // Global variables
 #define PORT 8080
-#define MAX_BUFFER 1028
+#define MAX_BUFFER 1024
 int server_fd;
 
 // Server connect function
@@ -132,9 +132,9 @@ int main(int argc, char *argv[]) {
     // Prepare buffer
     char buffer[MAX_BUFFER];
     memset(buffer, 0, MAX_BUFFER);
-    char username[MAX_BUFFER];
+    char username[100];
     strcpy(username, argv[2]);
-    char password[MAX_BUFFER];
+    char password[100];
     strcpy(password, argv[4]);
 
     // Register user
