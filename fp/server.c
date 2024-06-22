@@ -88,7 +88,7 @@ void list_channel(client_data *client);
 // Channel Join Handlers
 void  join_channel(char *channel, client_data *client);
 char* get_key(char *channel, client_data *client);
-int   verify_key(client_data *client, char *channel);
+int   verify_key(char *channel, client_data *client);
 
 // Room Handlers
 void create_room(char *room, client_data *client);
@@ -117,7 +117,7 @@ int main(int argc, char *argv[]){
 
     // Foreground handling
     if (argc > 1 && strcmp(argv[1], "-f") == 0){
-        printf("Server: running in foreground!\n");
+        printf("[SERVER] running in foreground!\n");
     } else daemonize();
 
     // Accept incoming connections
@@ -199,7 +199,7 @@ void start_server(){
     }
 
     // DEBUGGING
-    printf("Server: started on port %d\n", PORT);
+    printf("[SERVER] Started on port %d\n", PORT);
 }
 
 //===========================================================================================//
@@ -255,7 +255,7 @@ void *handle_client(void *arg){
         }
 
         // DEBUGGING
-        printf("LOGIN: %s\n", username);
+        printf("[%s - LOGIN]\n", username);
 
         // Call handle input function
         handle_input(client);
@@ -275,7 +275,7 @@ void handle_input(void *arg){
 
     while(1){
         // DEBUGGING
-        printf("Input: waiting %s\n", client->username);
+        printf("[%s] Waiting for command...\n", client->username);
 
         // Clear buffer
         memset(buffer, 0, MAX_BUFFER);
@@ -291,7 +291,7 @@ void handle_input(void *arg){
 
         if (strcmp(command, "QUIT") == 0){
             // DEBUGGING
-            printf("Quit: %s\n", client->username);
+            printf("[%s - QUIT]\n", client->username);
 
             // Send response to client
             memset(response, 0, MAX_BUFFER);
@@ -315,7 +315,7 @@ void handle_input(void *arg){
             // Check if command is valid
             if (type == NULL){
                 // DEBUGGING
-                printf("Error: Invalid command\n");
+                printf("[%s] Error: Invalid create (missing type)\n", client->username);
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
@@ -325,7 +325,7 @@ void handle_input(void *arg){
             }
 
             // DEBUGGING
-            printf("command: %s, type: %s\n", command, type);
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
 
             // Create channel
             if (strcmp(type, "CHANNEL") == 0){
@@ -337,7 +337,7 @@ void handle_input(void *arg){
                 // Check if command is valid
                 if (channel == NULL || key == NULL){
                     // DEBUGGING
-                    printf("Error: Invalid command (missing name/key)\n");
+                    printf("[%s] Error: Invalid command (missing name/key)\n", client->username);
 
                     // Send response to client
                     memset(response, 0, MAX_BUFFER);
@@ -346,7 +346,7 @@ void handle_input(void *arg){
                     continue;
                 } else if (strcmp(flag, "-k") != 0){
                     // DEBUGGING
-                    printf("Error: Invalid flag statement\n");
+                    printf("[%s] Error: Invalid flag statement\n", client->username);
 
                     // Send response to client
                     memset(response, 0, MAX_BUFFER);
@@ -356,7 +356,7 @@ void handle_input(void *arg){
                 }
 
                 // DEBUGGING
-                printf("channel: %s, key: %s\n", channel, key);
+                printf("[%s] Channel: %s, Key: %s\n", client->username, channel, key);
 
                 // Call create channel function
                 create_channel(channel, key, client);
@@ -367,7 +367,7 @@ void handle_input(void *arg){
                 // Check if command is valid
                 if (room == NULL){
                     // DEBUGGING
-                    printf("Error: Invalid command (missing room name)\n");
+                    printf("[%s] Error: Invalid command (missing room name)\n", client->username);
 
                     // Send response to client
                     memset(response, 0, MAX_BUFFER);
@@ -377,13 +377,13 @@ void handle_input(void *arg){
                 }
 
                 // DEBUGGING
-                printf("room: %s\n", room);
+                printf("[%s] Room: %s\n", client->username, room);
 
                 // Call create room function
                 create_room(room, client);
             } else {
                 // DEBUGGING
-                printf("Error: Create type not found\n");
+                printf("[%s] Error: Create type not found\n", client->username);
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
@@ -398,7 +398,7 @@ void handle_input(void *arg){
             // Check if command is valid
             if (type == NULL){
                 // DEBUGGING
-                printf("Error: Invalid command\n");
+                printf("[%s] Error: Invalid listing (missing type)\n", client->username);
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
@@ -408,7 +408,7 @@ void handle_input(void *arg){
             }
 
             // DEBUGGING
-            printf("command: %s, type: %s\n", command, type);
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
 
             // List channels
             if (strcmp(type, "CHANNEL") == 0){
@@ -422,7 +422,7 @@ void handle_input(void *arg){
                 list_user(client);
             } else {
                 // DEBUGGING
-                printf("Error: List type not found\n");
+                printf("[%s] Error: List type not found\n", client->username);
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
@@ -437,7 +437,7 @@ void handle_input(void *arg){
             // Check if command is valid
             if (target == NULL){
                 // DEBUGGING
-                printf("Error: Invalid command\n");
+                printf("[%s] Error: Invalid target\n", client->username);
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
@@ -447,7 +447,7 @@ void handle_input(void *arg){
             }
 
             // DEBUGGING
-            printf("command: %s, type: %s\n", command, target);
+            printf("[%s] Command: %s, target: %s\n", client->username, command, target);
 
             // Join channel if user is not in a channel
             if (strlen(client->channel) == 0){
@@ -457,7 +457,7 @@ void handle_input(void *arg){
                 // insert join room function here
             } else {
                 // DEBUGGING
-                printf("Error: User is already in a room\n");
+                printf("[%s] Error: User is already in a room\n", client->username);
 
                 // Send response to client
                 memset(response, 0, MAX_BUFFER);
@@ -467,7 +467,7 @@ void handle_input(void *arg){
 
         } else {
             // DEBUGGING
-            printf("Error: Command not found\n");
+            printf("[%s] Error: Command not found\n", client->username);
 
             // Send response to client
             memset(response, 0, MAX_BUFFER);
@@ -497,7 +497,7 @@ void register_user(char *username, char *password, client_data *client) {
     // Fail if file cannot be opened
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[REGISTER] Error: Unable to open file\n");
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open file");
@@ -509,13 +509,13 @@ void register_user(char *username, char *password, client_data *client) {
     int id = 0; char namecheck[MAX_BUFFER];
     while (fscanf(file, "%d,%[^,],%*s", &id, namecheck) == 2) {
         // DEBUGGING
-        printf("id: %d, name: %s\n", id, namecheck);
+        printf("[REGISTER] id: %d, name: %s\n", id, namecheck);
         // sleep(1);
 
         // Fail if username already exists
         if (strcmp(namecheck, username) == 0) {
             // DEBUGGING
-            printf("Error: Username already exists\n");
+            printf("[REGISTER] Error: Username already exists\n");
 
             // Close file
             fclose(file);
@@ -537,7 +537,7 @@ void register_user(char *username, char *password, client_data *client) {
     else         strcpy(role, "USER");
 
     // DEBUGGING
-    printf("id: %d, name: %s, pass: %s, role: %s\n", id+1, username, hash, role);
+    printf("[REGISTER] id: %d, name: %s, pass: %s, role: %s\n", id+1, username, hash, role);
     
     // Write to file
     fprintf(file, "%d,%s,%s,%s\n", id+1, username, hash, role);
@@ -568,7 +568,7 @@ int login_user(char *username, char *password, client_data *client) {
     // Fail if file cannot be opened
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[LOGIN] Error: Unable to open file\n");
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open file");
@@ -580,13 +580,13 @@ int login_user(char *username, char *password, client_data *client) {
     int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
         // DEBUGGING
-        printf("id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
+        printf("[LOGIN] id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
 
         // Fail if username and password do not match
         if (strcmp(namecheck, username) == 0) {
             if (strcmp(passcheck, hash) == 0) {
                 // DEBUGGING
-                printf("Success: Username and password match\n");
+                printf("[LOGIN] Success: Username and password match\n");
 
                 // Finishing up
                 client->id = id;
@@ -595,7 +595,7 @@ int login_user(char *username, char *password, client_data *client) {
                 fclose(file);
 
                 // DEBUGGING
-                printf("id: %d, name: %s, role: %s\n", client->id, client->username, client->role);
+                printf("[LOGIN] client_id: %d, client_name: %s, client_role: %s\n", client->id, client->username, client->role);
 
                 // Send response to client
                 sprintf(response, "LOGIN,Welcome to DiscorIT!\n");
@@ -604,7 +604,7 @@ int login_user(char *username, char *password, client_data *client) {
             }
 
             // DEBUGGING
-            printf("Error: Password does not match\n");
+            printf("[LOGIN] Error: Password does not match\n");
 
             // Fail if password does not match
             sprintf(response, "MSG,Error: Password does not match");
@@ -615,7 +615,7 @@ int login_user(char *username, char *password, client_data *client) {
     }
 
     // DEBUGGING
-    printf("Error: Username does not exist\n");
+    printf("[LOGIN] Error: Username does not exist\n");
 
     // Send response to client
     sprintf(response, "MSG,Error: Username does not exist");
@@ -637,7 +637,7 @@ void make_directory(char *path) {
     if (mkdir(path, 0777) == -1)
     // Fail if directory cannot be created
     if (errno != EEXIST) {
-        printf("Error: Unable to create directory\n");
+        printf("[MKDIR] Error: Unable to create directory\n");
         return;
     }
 }
@@ -653,7 +653,7 @@ void admin_init_channel(char *path_auth, client_data *client){
     // Fail if file cannot be opened
     if (file_auth == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[%s - INIT AUTH] Error: Unable to open file\n", client->username);
         return;
     }
 
@@ -683,7 +683,7 @@ int check_channel(char *channel, client_data *client){
     FILE *file = fopen(channels_csv, "r");
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[%s - CHECK CHANNEL] Error: Unable to open file\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open file");
@@ -695,6 +695,9 @@ int check_channel(char *channel, client_data *client){
     int id; char channelcheck[100];
     while (fscanf(file, "%d,%[^,],%*s", &id, channelcheck) == 2) {
         if (strcmp(channel, channelcheck) == 0) {
+            // DEBUGGING
+            printf("[%s - CHECK CHANNEL] Channel exists\n", client->username);
+
             // Return id if channel exists
             return -2;
         }
@@ -702,6 +705,9 @@ int check_channel(char *channel, client_data *client){
 
     // Close file
     fclose(file);
+
+    // DEBUGGING
+    printf("[%s - CHECK CHANNEL] Channel does not exist\n", client->username);
 
     // Return -1 if channel does not exist
     return id;
@@ -721,7 +727,7 @@ void create_channel(char *channel, char *key, client_data *client) {
     int id = check_channel(channel, client);
     if (id == -2) {
         // DEBUGGING
-        printf("Error: Channel already exists\n");
+        printf("[%s - CREATE CHANNEL] Error: Channel already exists\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Channel %s already exists", channel);
@@ -749,6 +755,9 @@ void create_channel(char *channel, char *key, client_data *client) {
     make_directory(path_admin);
     admin_init_channel(path_auth, client);
 
+    // DEBUGGING
+    printf("[%s - CREATE CHANNEL] Success: Channel %s created\n", client->username, channel);
+
     // Send response to client
     sprintf(response, "MSG,Success: Channel %s created", channel);
     send(client_fd, response, strlen(response), 0);
@@ -772,7 +781,7 @@ void list_channel(client_data *client) {
     // Fail if file cannot be opened
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[%s - LIST CHANNEL] Error: Unable to open file\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open file");
@@ -784,7 +793,7 @@ void list_channel(client_data *client) {
     int id = 1; char channel[MAX_BUFFER];
     while (fscanf(file, "%d,%[^,],%*s", &id, channel) == 2) {
         // DEBUGGING
-        printf("id: %d, name: %s\n", id, channel);
+        printf("[%s - LIST CHANNEL] id: %d, channel: %s\n", client->username, id, channel);
 
         // Increment channels found
         channels_found++;
@@ -799,9 +808,15 @@ void list_channel(client_data *client) {
 
     // Send response to client
     if (channels_found == 0) {
+        // DEBUGGING
+        printf("[%s - LIST CHANNEL] No channels found\n", client->username);
+
         sprintf(response, "MSG,No channels found");
         send(client_fd, response, strlen(response), 0);
     } else {
+        // DEBUGGING
+        printf("[%s - LIST CHANNEL] Channels found: %d\n", client->username, channels_found);
+
         send(client_fd, response, strlen(response), 0);
     }
 
@@ -822,7 +837,7 @@ void join_channel(char *channel, client_data *client) {
     // Check if channel exists
     if (check_channel(channel, client) != -2) {
         // DEBUGGING
-        printf("Error: Channel does not exist\n");
+        printf("[%s - JOIN CHANNEL] Error: Channel does not exist\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Channel does not exist");
@@ -838,7 +853,7 @@ void join_channel(char *channel, client_data *client) {
     // Fail if file cannot be opened
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open auth file\n");
+        printf("[%s - JOIN CHANNEL] Error: Unable to open auth file\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open auth file");
@@ -850,14 +865,14 @@ void join_channel(char *channel, client_data *client) {
     int id; char role[6];
     while (fscanf(file, "%d,%*[^,],%s", &id, role) == 2) {
         // DEBUGGING
-        printf("id: %d, role: %s\n", id, role);
+        printf("[%s - JOIN CHANNEL] id: %d, role: %s\n", client->username, id, role);
 
         // If there is an id match or user is root
         if (client->id == id) {
             // Check if user is banned
             if (strcmp(role, "BANNED") == 0) {
                 // DEBUGGING
-                printf("Error: User is banned\n");
+                printf("[%s - JOIN CHANNEL] Error: User is banned from %s\n", client->username, channel);
 
                 // Close file
                 fclose(file);
@@ -869,7 +884,7 @@ void join_channel(char *channel, client_data *client) {
             }
 
             // DEBUGGING
-            printf("Success: %s joined channel\n", client->username);
+            printf("[%s - JOIN CHANNEL] Success: User joined %s\n", client->username, channel);
 
             // Close file
             fclose(file);
@@ -893,7 +908,7 @@ void join_channel(char *channel, client_data *client) {
         fprintf(file, "%d,%s,ROOT\n", client->id, client->username);
 
         // DEBUGGING
-        printf("Success: Root user joined channel\n");
+        printf("[%s - JOIN CHANNEL] Success: Root joined %s\n", client->username, channel);
 
         // Close file
         fclose(file);
@@ -908,12 +923,12 @@ void join_channel(char *channel, client_data *client) {
     }
 
     // Verify key if user is not listed
-    if (verify_key(client, channel) == 1) {
+    if (verify_key(channel, client) == 1) {
         // Open auth of current channel and add user
         fprintf(file, "%d,%s,USER\n", client->id, client->username);
 
         // DEBUGGING
-        printf("Success: %s joined channel\n", client->username);
+        printf("[%s - JOIN CHANNEL] Success: User joined %s\n", client->username, channel);
 
         // Close file
         fclose(file);
@@ -952,7 +967,7 @@ char* get_key(char *channel, client_data *client) {
     // Fail if file cannot be opened
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[%s - GET KEY] Error: Unable to open file\n", client->username);
 
         // Return NULL if file cannot be opened
         return NULL;
@@ -963,12 +978,12 @@ char* get_key(char *channel, client_data *client) {
     char *keycheck = (char *)malloc(sizeof(char) * MAX_BUFFER);
     while (fscanf(file, "%d,%[^,],%s", &id, channelcheck, keycheck) == 3) {
         // DEBUGGING
-        printf("id: %d, name: %s, key: %s\n", id, channelcheck, keycheck);
+        printf("[%s - GET KEY] id: %d, channel: %s, key: %s\n", client->username, id, channelcheck, keycheck);
 
         // Return key if channel exists
         if (strcmp(channel, channelcheck) == 0) {
             // DEBUGGING
-            printf("Success: Key found\n");
+            printf("[%s - GET KEY] Success: Key found\n", client->username);
 
             // Close file and return
             fclose(file);
@@ -987,7 +1002,7 @@ char* get_key(char *channel, client_data *client) {
 // VERIFY CHANNEL //
 //================//
 
-int verify_key(client_data *client, char *channel) {
+int verify_key(char *channel, client_data *client) {
     int client_fd = client->socket_fd;
 
     // Get key from channel
@@ -996,7 +1011,7 @@ int verify_key(client_data *client, char *channel) {
     // Check if key is not null
     if (key == NULL) {
         // DEBUGGING
-        printf("Error: Key from channel is NULL somehow\n");
+        printf("[%s - VERIFY KEY] Error: Key is NULL\n", client->username);
 
         // Break if key is null
         return -1;
@@ -1027,14 +1042,14 @@ int verify_key(client_data *client, char *channel) {
     // Check if key is not null
     if (keycheck == NULL) {
         // DEBUGGING
-        printf("Error: Key from client is NULL\n");
+        printf("[%s - VERIFY KEY] Error: Key is NULL\n", client->username);
 
         // Return -1 if key is null
         return -1;
     }
 
     // DEBUGGING
-    printf("command: %s, key: %s\n", command, keycheck);
+    printf("[%s - VERIFY KEY] Command: %s, Key: %s\n", client->username, command, keycheck);
 
     // Hash key
     char hash[MAX_BUFFER];
@@ -1043,14 +1058,14 @@ int verify_key(client_data *client, char *channel) {
     // Check if key matches
     if (strcmp(command, "KEY") == 0 && strcmp(key, hash) == 0) {
         // DEBUGGING
-        printf("Success: Key matches\n");
+        printf("[%s - VERIFY KEY] Success: Key matches\n", client->username);
 
         // Success if key matches
         return 1;
     }
 
     // DEBUGGING
-    printf("Error: Key does not match\n");
+    printf("[%s - VERIFY KEY] Error: Key does not match\n", client->username);
 
     // Fail if key does not match
     return -1;    
@@ -1078,7 +1093,7 @@ void create_room(char *room, client_data *client) {
     // Fail if file cannot be opened    
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[%s - CREATE ROOM] Error: Unable to open auth file\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open file");
@@ -1090,14 +1105,14 @@ void create_room(char *room, client_data *client) {
     int id; char role[6];
     while (fscanf(file, "%d,%*[^,],%s", &id, role) == 2) {
         // DEBUGGING
-        printf("id: %d, role: %s\n", id, role);
+        printf("[%s - CREATE ROOM] id: %d, role: %s\n", client->username, id, role);
 
         // Fail if user is not admin/root
         if (client->id == id
             && strcmp(role, "ADMIN") != 0
             && strcmp(role, "ROOT") != 0){
             // DEBUGGING
-            printf("Error: User has no privileges to make a room\n");
+            printf("[%s - CREATE ROOM] Error: User has no privileges\n", client->username);
 
             // Close file
             fclose(file);
@@ -1115,7 +1130,7 @@ void create_room(char *room, client_data *client) {
     // Check if room name is valid
     if (strcmp(room, "admin") == 0) {
         // DEBUGGING
-        printf("Error: Invalid room name\n");
+        printf("[%s - CREATE ROOM] Error: Invalid room name\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Invalid room name");
@@ -1134,7 +1149,7 @@ void create_room(char *room, client_data *client) {
     FILE *file_chat = fopen(path_chat, "w");
     if (file_chat == NULL) {
         // DEBUGGING
-        printf("Error: Unable to create chat file\n");
+        printf("[%s - CREATE ROOM] Error: Unable to create chat file\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to create chat file");
@@ -1157,7 +1172,7 @@ void list_room(client_data *client) {
     // Check if user is in a channel
     if (strlen(client->channel) == 0) {
         // DEBUGGING
-        printf("Error: User is not in a channel\n");
+        printf("[%s - LIST ROOM] Error: User is not in a channel\n", client->username);
 
         // Prepare response
         char response[MAX_BUFFER];
@@ -1181,7 +1196,7 @@ void list_room(client_data *client) {
     // Fail if directory cannot be opened
     if (dir == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open directory\n");
+        printf("[%s - LIST ROOM] Error: Unable to open directory\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open directory");
@@ -1195,7 +1210,7 @@ void list_room(client_data *client) {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
 
         // DEBUGGING
-        printf("name: %s, type: %d\n", entry->d_name, entry->d_type);
+        printf("[%s - LIST ROOM] Room: %s\n", client->username, entry->d_name);
 
         // Skip admin directory
         if (strcmp(entry->d_name, "admin") == 0) continue;
@@ -1220,6 +1235,9 @@ void list_room(client_data *client) {
     // Close directory
     closedir(dir);
 
+    // DEBUGGING
+    printf("[%s - LIST ROOM] Rooms found: %d\n", client->username, rooms_found);
+
     // Send response to client
     if (rooms_found == 0) {
         sprintf(response, "MSG,No rooms found");
@@ -1241,7 +1259,7 @@ void list_room(client_data *client) {
 
 void print_user(client_data *client) {
     // DEBUGGING
-    printf("id: %d, name: %s, role: %s, channel: %s, room: %s\n", client->id, client->username, client->role, client->channel, client->room);
+    printf("[%s] USER data fetched\n", client->username);
 
     // Prepare response
     char response[MAX_BUFFER];
@@ -1269,7 +1287,7 @@ void list_user(client_data *client) {
     // Check if user is in a channel
     if (strlen(client->channel) == 0) {
         // DEBUGGING
-        printf("Error: User is not in a channel\n");
+        printf("[%s - LIST USER] Error: User is not in a channel\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: User is not in a channel");
@@ -1286,7 +1304,7 @@ void list_user(client_data *client) {
     // Fail if file cannot be opened
     if (file == NULL) {
         // DEBUGGING
-        printf("Error: Unable to open file\n");
+        printf("[%s - LIST USER] Error: Unable to open file\n", client->username);
 
         // Send response to client
         sprintf(response, "MSG,Error: Unable to open file");
@@ -1298,7 +1316,7 @@ void list_user(client_data *client) {
     int id; char username[MAX_BUFFER];
     while (fscanf(file, "%d,%[^,],%*s", &id, username) == 2) {
         // DEBUGGING
-        printf("id: %d, name: %s\n", id, username);
+        printf("[%s - LIST USER] id: %d, username: %s\n", client->username, id, username);
 
         // Concatenate response
         if (strlen(response) > 4) strcat(response, " ");
