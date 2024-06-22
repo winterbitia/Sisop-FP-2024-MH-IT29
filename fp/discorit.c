@@ -111,9 +111,9 @@ int handle_command(const char *buffer) {
     }
 
     // Receive response
-    char response[MAX_BUFFER];
-    memset(response, 0, MAX_BUFFER);
-    if (recv(server_fd, response, MAX_BUFFER, 0) < 0) {
+    char response[MAX_BUFFER*8];
+    memset(response, 0, MAX_BUFFER*8);
+    if (recv(server_fd, response, MAX_BUFFER*8, 0) < 0) {
         perror("recv failed");
         exit(EXIT_FAILURE);
     }
