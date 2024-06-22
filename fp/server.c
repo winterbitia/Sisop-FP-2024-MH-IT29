@@ -84,7 +84,11 @@ void admin_init_channel(char *path_auth, client_data *client);
 int  check_channel(char *channel, client_data *client);
 void create_channel(char *channel, char *key, client_data *client);
 void list_channel(client_data *client);
-void join_channel(char *channel, client_data *client);
+
+// Channel Join Handlers
+void  join_channel(char *channel, client_data *client);
+char* get_key(char *channel, client_data *client);
+int   verify_key(client_data *client, char *channel);
 
 // Room Handlers
 void create_room(char *room, client_data *client);
@@ -848,7 +852,7 @@ void join_channel(char *channel, client_data *client) {
             }
 
             // DEBUGGING
-            printf("Success: User joined channel\n");
+            printf("Success: %s joined channel\n", client->username);
 
             // Close file
             fclose(file);
@@ -857,7 +861,10 @@ void join_channel(char *channel, client_data *client) {
             strcpy(client->channel, channel);
 
             // Send response to client
-            sprintf(response, "MSG,Success: User joined channel %s", channel);
+            if (strcmp(client->role, "ROOT") == 0)
+                sprintf(response, "CHANNEL,Joined channel %s as ROOT,%s", channel, channel);
+            else
+                sprintf(response, "CHANNEL,Joined channel %s,%s", channel, channel);
             send(client_fd, response, strlen(response), 0);
             return;
         }
@@ -878,20 +885,158 @@ void join_channel(char *channel, client_data *client) {
         strcpy(client->channel, channel);
 
         // Send response to client
-        sprintf(response, "MSG,Success: Root user joined channel %s", channel);
+        sprintf(response, "CHANNEL,Joined channel %s as ROOT,%s", channel, channel);
         send(client_fd, response, strlen(response), 0);
         return;
     }
 
-    // ADD KEY VERIFICATION SYSTEM HERE AS A FUNCTION
+    // Verify key if user is not listed
+    if (verify_key(client, channel) == 1) {
+        // Open auth of current channel and add user
+        fprintf(file, "%d,%s,USER\n", client->id, client->username);
+
+        // DEBUGGING
+        printf("Success: %s joined channel\n", client->username);
+
+        // Close file
+        fclose(file);
+
+        // Update client channel
+        strcpy(client->channel, channel);
+
+        // Send response to client
+        sprintf(response, "CHANNEL,Joined channel %s,%s", channel, channel);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 
     // Close file
     fclose(file);
 
-    // Fails if user is not listed
-    sprintf(response, "MSG,Error: User is not listed in channel");
+    // Send response to client
+    sprintf(response, "MSG,Error: Key verification failure");
     send(client_fd, response, strlen(response), 0);
     return;
+}
+
+//=================//
+// GET CHANNEL KEY //
+//=================//
+
+char* get_key(char *channel, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Open channel list
+    FILE *file = fopen(channels_csv, "r");
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("Error: Unable to open file\n");
+
+        // Return NULL if file cannot be opened
+        return NULL;
+    }
+
+    // Loop through id, channel, and key
+    int id; char channelcheck[MAX_BUFFER];
+    char *keycheck = (char *)malloc(sizeof(char) * MAX_BUFFER);
+    while (fscanf(file, "%d,%[^,],%s", &id, channelcheck, keycheck) == 3) {
+        // DEBUGGING
+        printf("id: %d, name: %s, key: %s\n", id, channelcheck, keycheck);
+
+        // Return key if channel exists
+        if (strcmp(channel, channelcheck) == 0) {
+            // DEBUGGING
+            printf("Success: Key found\n");
+
+            // Close file and return
+            fclose(file);
+            return keycheck;
+        }
+    }
+
+    // Close file
+    fclose(file);
+
+    // Return NULL if channel does not exist
+    return NULL;
+}
+
+//================//
+// VERIFY CHANNEL //
+//================//
+
+int verify_key(client_data *client, char *channel) {
+    int client_fd = client->socket_fd;
+
+    // Get key from channel
+    char *key = get_key(channel, client);
+
+    // Check if key is not null
+    if (key == NULL) {
+        // DEBUGGING
+        printf("Error: Key from channel is NULL somehow\n");
+
+        // Break if key is null
+        return -1;
+    }
+
+    // Request key from client
+    char request[MAX_BUFFER];
+    sprintf(request, "KEY,%s", channel);
+    send(client_fd, request, strlen(request), 0);
+
+    // Prepare for key verification and response
+    char buffer[MAX_BUFFER];
+    memset(buffer, 0, MAX_BUFFER);
+
+    // Receive data from client
+    if (recv(client_fd, buffer, MAX_BUFFER, 0) < 0){
+        perror("recv failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Parse data from client
+    char *command = strtok(buffer, " ");
+    char *keycheck = strtok(NULL, " ");
+
+    // Check if key is not null
+    if (keycheck == NULL) {
+        // DEBUGGING
+        printf("Error: Key from client is NULL\n");
+
+        // Return -1 if key is null
+        return -1;
+    }
+
+    // DEBUGGING
+    printf("command: %s, key: %s\n", command, keycheck);
+
+    // Hash key
+    char hash[MAX_BUFFER];
+    strcpy(hash,crypt(keycheck, HASHCODE));
+
+    // Check if key matches
+    if (strcmp(command, "KEY") == 0 && strcmp(key, hash) == 0) {
+        // DEBUGGING
+        printf("Success: Key matches\n");
+
+        // Success if key matches
+        return 1;
+    }
+
+    // DEBUGGING
+    printf("Error: Key does not match\n");
+
+    // Fail if key does not match
+    return -1;    
 }
 
 //===========================================================================================//
@@ -1126,7 +1271,7 @@ void list_user(client_data *client) {
         printf("id: %d, name: %s\n", id, username);
 
         // Concatenate response
-        if (id > 1) strcat(response, " ");
+        if (strlen(response) > 4) strcat(response, " ");
         strcat(response, username);
     }
 
