@@ -99,6 +99,10 @@ void see_user(client_data *client);
 void list_user(client_data *client);
 void exit_user(client_data *client);
 
+// User Management Handlers
+void edit_username(char *username, char *new_username, client_data *client);
+void edit_password(char *username, char *new_password, client_data *client);
+
 // Chat Handlers
 void send_chat(char *message, client_data *client);
 void see_chat(client_data *client);
@@ -464,6 +468,64 @@ void handle_input(void *arg){
                 send(client_fd, response, strlen(response), 0);
             }
 
+ } else if (strcmp(command, "EDIT") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid edit (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing edit type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Edit types
+            if (strcmp(type, "WHERE") == 0){
+                char *target = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (target == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing target or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Target: %s, New: %s\n", client->username, flag, target, new);
+
+                // Branch flag types
+                if (strcmp(flag, "-u") == 0){
+                    // Call edit username function
+                    edit_username(target, new, client);
+                } else if (strcmp(flag, "-p") == 0){
+                    // Call edit password function
+                    edit_password(target, new, client);
+                } else {
+                    // DEBUGGING
+                    printf("[%s] Error: Flag type not found\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Flag type not found");
+                    send(client_fd, response, strlen(response), 0);
+                }
+            }
+
  } else if (strcmp(command, "JOIN") == 0){
             // Parse data from client
             char *target = strtok(NULL, " ");
@@ -499,6 +561,7 @@ void handle_input(void *arg){
                 sprintf(response, "MSG,Error: User is already in a channel");
                 send(client_fd, response, strlen(response), 0);
             }
+
  } else if (strcmp(command, "CHAT") == 0){
             // Parse data from client
             char *message = strtok(NULL, "\n");
@@ -1507,6 +1570,111 @@ void exit_user(client_data *client){
     send(client_fd, response, strlen(response), 0);
     return;
 }
+
+//================//
+// EDIT USER NAME //
+//================//
+
+void edit_username(char *username, char *newusername, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] username: %s, newusername: %s\n", client->username, username, newusername);
+
+    // Open file
+    FILE *file = fopen(users_csv, "r+");
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0)
+    // Check if user is editing self
+    if (strcmp(client->username, username) != 0) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: User is not admin/root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not admin/root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // MAKE THE LOOP WORK PLEASE
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] Error: Username not found\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Error: Username not found");
+    send(client_fd, response, strlen(response), 0);
+    fclose(file);
+    return;
+}
+
+//================//
+// EDIT USER PASS //
+//================//
+
+void edit_password(char *username, char *newpassword, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][EDIT PASSWORD] username: %s, newpassword: %s\n", client->username, username, newpassword);
+
+    // Open file
+    FILE *file = fopen(users_csv, "r+");
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0)
+    // Check if user is editing self
+    if (strcmp(client->username, username) != 0) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] Error: User is not admin/root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not admin/root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // MAKE THE LOOP WORK PLEASE
+
+    // DEBUGGING
+    printf("[%s][EDIT PASSWORD] Error: Username not found\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Error: Username not found");
+    send(client_fd, response, strlen(response), 0);
+    fclose(file);
+    return;
+}
+
 //===========================================================================================//
 //------------------------------------------- CHAT ------------------------------------------//
 //===========================================================================================//
@@ -1625,21 +1793,20 @@ void see_chat(client_data *client) {
         send(client_fd, response, strlen(response), 0);
         return;
     }
+    fseek(file, 0, SEEK_SET);
 
     // Loop through csv to get messages
     int id; char timestamp[20], username[100], message[MAX_BUFFER];
-    while (fscanf(file, "%19[^,],%d,%99[^,],%1023[^\n]",
+    while (fscanf(file, " %[^,],%d,%[^,],%[^\n]",
            timestamp, &id, username, message) == 4) {
         // DEBUGGING
         printf("[%s][SEE CHAT] [%s][%d][%s] %s\n", client->username, timestamp, id, username, message);
 
-        // Break if response is too large
-        if (strlen(response) + strlen(chat) + 2 > sizeof(response)) {
-            break;
-        }
-
         // Prepare chat send
         snprintf(chat, sizeof(chat), "[%s][%d][%s] %s", timestamp, id, username, message);
+
+        // Break if response is too large
+        if (strlen(response) + strlen(chat) + 2 > sizeof(response)) break;
 
         // Concatenate response with chat
         if (strlen(response) > 4) strcat(response, "\n");
