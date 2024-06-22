@@ -93,6 +93,7 @@ int   verify_key(char *channel, client_data *client);
 // Room Handlers
 void create_room(char *room, client_data *client);
 void list_room(client_data *client);
+void join_room(char *room, client_data *client);
 
 // User Handlers
 void print_user(client_data *client);
@@ -454,7 +455,7 @@ void handle_input(void *arg){
                 // Call join channel function
                 join_channel(target, client);
             } else if (strlen(client->room) == 0){
-                // insert join room function here
+                join_room(target, client);
             } else {
                 // DEBUGGING
                 printf("[%s] Error: User is already in a room\n", client->username);
@@ -1247,6 +1248,59 @@ void list_room(client_data *client) {
     }
 
     return;
+}
+
+void join_room(char *room, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if room exists
+    char path_room[MAX_BUFFER];
+    sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
+    struct stat statbuf;
+    if (stat(path_room, &statbuf) == -1) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Error: Room does not exist\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Room does not exist");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Join room if user is not in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Success: User joined %s\n", client->username, room);
+
+        // Update client room
+        strcpy(client->room, room);
+
+        // Send response to client
+        sprintf(response, "ROOM,Joined room %s,%s", room, room);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][JOIN ROOM] Error: User is already in a room\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Error: User is already in a room");
+    send(client_fd, response, strlen(response), 0);
 }
 
 //===========================================================================================//
