@@ -1539,7 +1539,8 @@ void send_chat(char *message, client_data *client) {
 void see_chat(client_data *client) {
     int client_fd = client->socket_fd;
 
-    // Prepare larger response
+    // Prepare larger response for chat
+    char chat[MAX_BUFFER+256];
     char response[MAX_CHAT];
     sprintf(response, "MSG,");
 
@@ -1586,12 +1587,17 @@ void see_chat(client_data *client) {
 
     // Loop through csv to get messages
     int id; char timestamp[20], username[100], message[MAX_BUFFER];
-    while (fscanf(file, "%[^,],%d,%[^,],%[^\n]", timestamp, &id, username, message) == 4){
+    while (fscanf(file, "%19[^,],%d,%99[^,],%1023[^\n]",
+           timestamp, &id, username, message) == 4) {
         // DEBUGGING
         printf("[%s][SEE CHAT] [%s][%d][%s] %s\n", client->username, timestamp, id, username, message);
 
+        // Break if response is too large
+        if (strlen(response) + strlen(chat) + 2 > sizeof(response)) {
+            break;
+        }
+
         // Prepare chat send
-        char chat[MAX_BUFFER+256];
         snprintf(chat, sizeof(chat), "[%s][%d][%s] %s", timestamp, id, username, message);
 
         // Concatenate response with chat
