@@ -26,7 +26,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <crypt.h>
-#include <stdbool.h>
 #include <errno.h>
 #include <dirent.h>
 #include <time.h>
@@ -39,6 +38,7 @@
 #define PORT 8080
 #define MAX_CLIENTS 10
 #define MAX_BUFFER 1024
+#define MAX_CHAT 8192
 #define HASHCODE "sk1b1d1_to1l3t_r1zz_gy477_s1gm4"
 
 // Dir variables
@@ -79,7 +79,6 @@ void register_user(char *username, char *password, client_data *client);
 int  login_user(char *username, char *password, client_data *client);
 
 // Channel Handlers
-void make_directory(char *path);
 void admin_init_channel(char *path_auth, client_data *client);
 int  check_channel(char *channel, client_data *client);
 void create_channel(char *channel, char *key, client_data *client);
@@ -96,8 +95,16 @@ void list_room(client_data *client);
 void join_room(char *room, client_data *client);
 
 // User Handlers
-void print_user(client_data *client);
+void see_user(client_data *client);
 void list_user(client_data *client);
+
+// Chat Handlers
+void send_chat(char *message, client_data *client);
+void see_chat(client_data *client);
+
+// Misc Handlers
+void make_directory(char *path);
+char* get_timestamp();
 
 
 //===========================================================================================//
@@ -305,9 +312,41 @@ void handle_input(void *arg){
             pthread_exit(NULL);
             return;
 
- } else if (strcmp(command, "USER") == 0){
-            // Call print user function
-            print_user(client);
+ } else if (strcmp(command, "SEE") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid see (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing see type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // See types
+            if (strcmp(type, "USER") == 0){
+                // Call print user function
+                see_user(client);
+            } else if (strcmp(type, "CHAT") == 0){
+                // Call print chat function
+                see_chat(client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: See type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: See type not found");
+                send(client_fd, response, strlen(response), 0);
+            }
 
  } else if (strcmp(command, "CREATE") == 0){
             // Parse data from client
@@ -328,7 +367,7 @@ void handle_input(void *arg){
             // DEBUGGING
             printf("[%s] Command: %s, type: %s\n", client->username, command, type);
 
-            // Create channel
+            // Create types
             if (strcmp(type, "CHANNEL") == 0){
                 // Parse data from client
                 char *channel = strtok(NULL, " ");
@@ -411,7 +450,7 @@ void handle_input(void *arg){
             // DEBUGGING
             printf("[%s] Command: %s, type: %s\n", client->username, command, type);
 
-            // List channels
+            // Listing types
             if (strcmp(type, "CHANNEL") == 0){
                 // Call list channels function
                 list_channel(client);
@@ -455,6 +494,7 @@ void handle_input(void *arg){
                 // Call join channel function
                 join_channel(target, client);
             } else if (strlen(client->room) == 0){
+                // Call join room function
                 join_room(target, client);
             } else {
                 // DEBUGGING
@@ -465,6 +505,39 @@ void handle_input(void *arg){
                 sprintf(response, "MSG,Error: User is already in a channel");
                 send(client_fd, response, strlen(response), 0);
             }
+ } else if (strcmp(command, "CHAT") == 0){
+            // Parse data from client
+            char *message = strtok(NULL, "\n");
+
+            // Check if command is valid
+            if (message == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid message (missing message)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing message)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // Check if message is correctly encased in quotes
+            if (message[0] != '"' || message[strlen(message)-1] != '"'){
+                // DEBUGGING
+                printf("[%s] Error: Invalid message (missing quotes)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing quotes)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, message: %s\n", client->username, command, message);
+
+            // Call send chat function
+            send_chat(message, client);
 
         } else {
             // DEBUGGING
@@ -629,20 +702,6 @@ int login_user(char *username, char *password, client_data *client) {
 //----------------------------------------- CHANNELS ----------------------------------------//
 //===========================================================================================//
 
-//================//
-// MAKE DIRECTORY //
-//================//
-
-void make_directory(char *path) {
-    // Create directory
-    if (mkdir(path, 0777) == -1)
-    // Fail if directory cannot be created
-    if (errno != EEXIST) {
-        printf("[MKDIR] Error: Unable to create directory\n");
-        return;
-    }
-}
-
 //====================//
 // INIT CHANNEL ADMIN //
 //====================//
@@ -679,6 +738,7 @@ int check_channel(char *channel, client_data *client){
 
     // Prepare response
     char response[MAX_BUFFER];
+    int id = 0;
 
     // Open channel list
     FILE *file = fopen(channels_csv, "r");
@@ -686,20 +746,18 @@ int check_channel(char *channel, client_data *client){
         // DEBUGGING
         printf("[%s][CHECK CHANNEL] Error: Unable to open file\n", client->username);
 
-        // Send response to client
-        sprintf(response, "MSG,Error: Unable to open file");
-        send(client_fd, response, strlen(response), 0);
-        return -1;
+        // Return 0 if file does not exist
+        return id;
     }
 
     // Loop through channel list
-    int id; char channelcheck[100];
+    char channelcheck[100];
     while (fscanf(file, "%d,%[^,],%*s", &id, channelcheck) == 2) {
         if (strcmp(channel, channelcheck) == 0) {
             // DEBUGGING
             printf("[%s][CHECK CHANNEL] Channel exists\n", client->username);
 
-            // Return id if channel exists
+            // Return -2 if channel exists (dont ask why i picked -2)
             return -2;
         }
     }
@@ -710,7 +768,7 @@ int check_channel(char *channel, client_data *client){
     // DEBUGGING
     printf("[%s][CHECK CHANNEL] Channel does not exist\n", client->username);
 
-    // Return -1 if channel does not exist
+    // Return 0 if channel does not exist
     return id;
 }
 
@@ -726,6 +784,11 @@ void create_channel(char *channel, char *key, client_data *client) {
 
     // Check if channel id exists
     int id = check_channel(channel, client);
+
+    // DEBUGGING
+    printf("[%s][CREATE CHANNEL] id: %d\n", client->username);
+
+    // Fail if channel already exists
     if (id == -2) {
         // DEBUGGING
         printf("[%s][CREATE CHANNEL] Error: Channel already exists\n", client->username);
@@ -1020,7 +1083,7 @@ int verify_key(char *channel, client_data *client) {
 
     // Request key from client
     char request[MAX_BUFFER];
-    sprintf(request, "KEY,%s", channel);
+    sprintf(request, "KEY,Request to join %s", channel);
     send(client_fd, request, strlen(request), 0);
 
     // Prepare for key verification and response
@@ -1083,13 +1146,24 @@ int verify_key(char *channel, client_data *client) {
 void create_room(char *room, client_data *client) {
     int client_fd = client->socket_fd;
 
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][CREATE ROOM] Error: User is not in a channel\n", client->username);
+
+        // Prepare response
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
     // Open auth of current channel
     char path_auth[MAX_BUFFER];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
     FILE *file = fopen(path_auth, "r");
-
-    // Prepare response
-    char response[MAX_BUFFER];
 
     // Fail if file cannot be opened    
     if (file == NULL) {
@@ -1166,6 +1240,10 @@ void create_room(char *room, client_data *client) {
     send(client_fd, response, strlen(response), 0);
     return;
 }
+
+//============//
+// LIST ROOMS //
+//============//
 
 void list_room(client_data *client) {
     int client_fd = client->socket_fd;
@@ -1250,6 +1328,10 @@ void list_room(client_data *client) {
     return;
 }
 
+//===========//
+// JOIN ROOM //
+//===========//
+
 void join_room(char *room, client_data *client) {
     int client_fd = client->socket_fd;
 
@@ -1311,7 +1393,7 @@ void join_room(char *room, client_data *client) {
 // PRINT USER DATA //
 //=================//
 
-void print_user(client_data *client) {
+void see_user(client_data *client) {
     // DEBUGGING
     printf("[%s] USER data fetched\n", client->username);
 
@@ -1325,7 +1407,6 @@ void print_user(client_data *client) {
     send(client->socket_fd, response, strlen(response), 0);
     return;
 }
-
 
 //=======================//
 // LIST USERS IN CHANNEL //
@@ -1383,4 +1464,179 @@ void list_user(client_data *client) {
     // Send response to client
     send(client_fd, response, strlen(response), 0);
     return;
+}
+
+//===========================================================================================//
+//------------------------------------------- CHAT ------------------------------------------//
+//===========================================================================================//
+
+//================//
+// SEND CHAT DATA //
+//================//
+
+void send_chat(char *message, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_CHAT];
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][SEND CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+
+    // Open chat file
+    FILE *file = fopen(path_chat, "a+");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][SEND CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through csv to get ID
+    int id = 0;
+    while (fscanf(file, "%*[^,],%d,%*[^,],%*[^\n]", &id) == 1) {
+        // DEBUGGING
+        printf("[%s][SEND CHAT] id: %d\n", client->username, id);
+    }
+
+    // Get timestamp
+    char *timestamp = get_timestamp();
+    fprintf(file, "%s,%d,%s,%s\n", timestamp, id+1, client->username, message);
+
+    // Close file
+    fclose(file);
+
+    // DEBUGGING
+    printf("[%s][SEND CHAT] Success: Chat sent\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,[%s][%d][%s][SENT]", timestamp, id+1, client->username);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//===============//
+// SEE CHAT DATA //
+//===============//
+
+void see_chat(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare larger response
+    char response[MAX_CHAT];
+    sprintf(response, "MSG,");
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][SEE CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+
+    // Open chat file
+    FILE *file = fopen(path_chat, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][SEE CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if chat is empty
+    fseek(file, 0, SEEK_END);
+    if (ftell(file) == 0) {
+        // DEBUGGING
+        printf("[%s][SEE CHAT] Error: Chat is empty\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Chat is empty");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through csv to get messages
+    int id; char timestamp[20], username[100], message[MAX_BUFFER];
+    while (fscanf(file, "%[^,],%d,%[^,],%[^\n]", timestamp, &id, username, message) == 4){
+        // DEBUGGING
+        printf("[%s][SEE CHAT] [%s][%d][%s] %s\n", client->username, timestamp, id, username, message);
+
+        // Prepare chat send
+        char chat[MAX_BUFFER+256];
+        snprintf(chat, sizeof(chat), "[%s][%d][%s] %s", timestamp, id, username, message);
+
+        // Concatenate response with chat
+        if (strlen(response) > 4) strcat(response, "\n");
+        strcat(response, chat);
+    }
+
+    // Close file
+    fclose(file);
+
+    // Send response to client
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//===========================================================================================//
+//------------------------------------------- MISC ------------------------------------------//
+//===========================================================================================//
+
+//================//
+// MAKE DIRECTORY //
+//================//
+
+void make_directory(char *path) {
+    // Create directory
+    if (mkdir(path, 0777) == -1)
+    // Fail if directory cannot be created
+    if (errno != EEXIST) {
+        printf("[MKDIR] Error: Unable to create directory\n");
+        return;
+    }
+}
+
+//===============//
+// GET TIMESTAMP //
+//===============//
+
+char* get_timestamp() {
+    time_t rawtime;
+    struct tm *timeinfo;
+    char *timestamp = (char *)malloc(sizeof(char) * MAX_BUFFER);
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strftime(timestamp, MAX_BUFFER, "%d/%m/%Y %H:%M:%S", timeinfo);
+
+    return timestamp;
 }
