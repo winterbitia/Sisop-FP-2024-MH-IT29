@@ -97,6 +97,7 @@ void join_room(char *room, client_data *client);
 // User Handlers
 void see_user(client_data *client);
 void list_user(client_data *client);
+void exit_user(client_data *client);
 
 // Chat Handlers
 void send_chat(char *message, client_data *client);
@@ -297,20 +298,13 @@ void handle_input(void *arg){
         // Prepare parse data from client
         char *command = strtok(buffer, " ");
 
-        if (strcmp(command, "QUIT") == 0){
+        // Start command handling
+        if (strcmp(command, "EXIT") == 0){
             // DEBUGGING
-            printf("[%s][QUIT]\n", client->username);
+            printf("[%s][EXIT]\n", client->username);
 
-            // Send response to client
-            memset(response, 0, MAX_BUFFER);
-            sprintf(response, "QUIT,Gracefully disconnecting from server...");
-            send(client_fd, response, strlen(response), 0);
-
-            // Close client connection
-            close(client_fd);
-            free(client);
-            pthread_exit(NULL);
-            return;
+            // Call exit user function
+            exit_user(client);
 
  } else if (strcmp(command, "SEE") == 0){
             // Parse data from client
@@ -1466,6 +1460,53 @@ void list_user(client_data *client) {
     return;
 }
 
+//===========//
+// EXIT USER //
+//===========//
+
+void exit_user(client_data *client){
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][EXIT DISCORIT]\n", client->username);
+
+        // Send response to client
+        sprintf(response, "QUIT,Gracefully disconnecting from server...");
+        send(client_fd, response, strlen(response), 0);
+
+        // Close client connection
+        close(client_fd);
+        free(client);
+        pthread_exit(NULL);
+        return;
+    }
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][EXIT CHANNEL] Exiting channel\n", client->username);
+
+        // Exit channel since user is not in a room
+        strcpy(client->channel, "");
+        sprintf(response, "EXIT,Exited channel %s,CHANNEL", client->channel);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][EXIT ROOM] Exiting room\n", client->username);
+
+    // Exit room since user is in a room
+    strcpy(client->room, "");
+    sprintf(response, "EXIT,Exited room %s,ROOM", client->room);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
 //===========================================================================================//
 //------------------------------------------- CHAT ------------------------------------------//
 //===========================================================================================//

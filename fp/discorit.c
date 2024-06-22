@@ -159,6 +159,32 @@ int handle_command(const char *buffer) {
         return 0;
     }
 
+    // Channel/room exiting
+    else if (strcmp(type, "EXIT") == 0){
+        // Parse exit type
+        char *exit_type = strtok(NULL, ",");
+
+        // Check if parsing is correct
+        if (exit_type == NULL) {
+            perror("exit type is empty");
+            exit(EXIT_FAILURE);
+        }
+
+        // Check if exiting channel
+        if (strcmp(exit_type, "CHANNEL") == 0) {
+            memset(channel, 0, 100);
+            printf("%s\n", message);
+            return 0;
+        }
+
+        // Check if exiting room
+        else if (strcmp(exit_type, "ROOM") == 0) {
+            memset(room, 0, 100);
+            printf("%s\n", message);
+            return 0;
+        }
+    }
+
     // Key request
     else if (strcmp(type, "KEY") == 0){
         printf("%s\n", message);
