@@ -99,13 +99,15 @@ void see_user(client_data *client);
 void list_user(client_data *client);
 void exit_user(client_data *client);
 
-// User Management Handlers
+// User Management Handlers (DOES NOT WORK!!)
 void edit_username(char *username, char *new_username, client_data *client);
 void edit_password(char *username, char *new_password, client_data *client);
 
 // Chat Handlers
 void send_chat(char *message, client_data *client);
 void see_chat(client_data *client);
+void edit_chat(int target, char *message, client_data *client);
+void del_chat(int target, client_data *client);
 
 // Misc Handlers
 void make_directory(char *path);
@@ -524,6 +526,100 @@ void handle_input(void *arg){
                     sprintf(response, "MSG,Error: Flag type not found");
                     send(client_fd, response, strlen(response), 0);
                 }
+            } else if (strcmp(type, "CHAT") == 0) {
+                // Parse data from client
+                char *target = strtok(NULL, " ");
+                char *message = strtok(NULL, "\n");
+
+                // Check if command is valid
+                if (target == NULL || message == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target/message)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing target or message)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if message is correctly encased in quotes
+                if (message[0] != '"' || message[strlen(message)-1] != '"'){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid message (missing quotes)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing quotes)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Target: %s, Message: %s\n", client->username, target, message);
+
+                // call edit chat function
+                edit_chat(atoi(target), message, client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: Edit type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Edit type not found");
+                send(client_fd, response, strlen(response), 0);
+            
+            }
+
+ } else if (strcmp(command, "DEL") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid delete (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing delete type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Delete types
+            if (strcmp(type, "CHAT") == 0){
+                // Parse data from client
+                char *target = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (target == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing target)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Target: %s\n", client->username, target);
+
+                // Call delete chat function
+                del_chat(atoi(target), client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: Delete type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Delete type not found");
+                send(client_fd, response, strlen(response), 0);
             }
 
  } else if (strcmp(command, "JOIN") == 0){
@@ -1817,6 +1913,239 @@ void see_chat(client_data *client) {
     fclose(file);
 
     // Send response to client
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//================//
+// EDIT CHAT DATA //
+//================//
+
+void edit_chat(int edit, char *message, client_data *client){
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+    FILE *file = fopen(path_chat, "r");
+
+    // Prepare temp path
+    char path_temp[MAX_BUFFER];
+    sprintf(path_temp, "%s/%s/%s/.chat_temp.csv", cwd, client->channel, client->room);
+    FILE *file_temp = fopen(path_temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][EDIT CHAT] id: %d, message: %s\n", client->username, edit);
+
+    // Loop until id matches
+    int id; char timestamp[20], username[100], message_old[MAX_BUFFER];
+    char buffer[MAX_CHAT];
+    int found = 0;
+    while (fgets(buffer, MAX_BUFFER, file) != NULL) {
+        // Get data from buffer
+        sscanf(buffer, "%[^,],%d,%[^,],%[^\n]", timestamp, &id, username, message_old);
+
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] id: %d, username: %s, message: %s\n", client->username, id, username, message_old);
+
+        // Edit if id matches
+        if (id == edit){
+            // Check if user is not admin/root
+            if (strcmp(client->role, "USER") == 0)
+            // Check if user is not the author
+            if (strcmp(client->username, username) != 0) {
+                // DEBUGGING
+                printf("[%s][EDIT CHAT] Error: User is not admin/root\n", client->username);
+
+                // Close files
+                fclose(file);
+                fclose(file_temp);
+
+                // Unlink temp file
+                remove(path_temp);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is not admin/root");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            found = 1;
+            fprintf(file_temp, "%s,%d,%s,%s\n", timestamp, id, username, message);
+            continue;
+        }
+
+        // Write to temp file
+        fprintf(file_temp, "%s", buffer);
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Check if id is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] Error: ID not found\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: ID not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } 
+
+    // DEBUGGING
+    printf("[%s][EDIT CHAT] Success: ID edited\n", client->username);
+
+    // Remove original file
+    remove(path_chat);
+
+    // Rename temp file
+    rename(path_temp, path_chat);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: ID edited");
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//================//
+// DELETE CHAT ID //
+//================//
+
+void del_chat(int delete, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][DEL CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+    FILE *file = fopen(path_chat, "r");
+
+    // Prepare temp path
+    char path_temp[MAX_BUFFER];
+    sprintf(path_temp, "%s/%s/%s/.chat_temp.csv", cwd, client->channel, client->room);
+    FILE *file_temp = fopen(path_temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][DEL CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][DEL CHAT] id: %d\n", client->username, delete);
+
+    // Loop until id matches
+    int id; char username[MAX_BUFFER];
+    char buffer[MAX_CHAT];
+    int found = 0;
+    while (fgets(buffer, MAX_BUFFER, file) != NULL) {
+        // Get data from buffer
+        sscanf(buffer, "%*[^,],%d,%[^,],%*[^\n]", &id, username);
+
+        // DEBUGGING
+        printf("[%s][DEL CHAT] id: %d, username: %s\n", client->username, id, username);
+
+        // Skip if id matches
+        if (id == delete){
+            // Check if user is not admin/root
+            if (strcmp(client->role, "USER") == 0)
+            // Check if user is not the author
+            if (strcmp(client->username, username) != 0) {
+                // DEBUGGING
+                printf("[%s][DEL CHAT] Error: User is not admin/root\n", client->username);
+
+                // Close files
+                fclose(file);
+                fclose(file_temp);
+
+                // Unlink temp file
+                remove(path_temp);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is not admin/root");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            found = 1;
+            continue;
+        }
+
+        // Write to temp file
+        fprintf(file_temp, "%s", buffer);
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Check if id is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][DEL CHAT] Error: ID not found\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: ID not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } 
+
+    // DEBUGGING
+    printf("[%s][DEL CHAT] Success: ID deleted\n", client->username);
+
+    // Remove original file
+    remove(path_chat);
+
+    // Rename temp file
+    rename(path_temp, path_chat);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: ID deleted");
     send(client_fd, response, strlen(response), 0);
     return;
 }
