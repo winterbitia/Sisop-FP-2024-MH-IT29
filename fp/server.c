@@ -96,6 +96,9 @@ void delete_channel(char *channel, client_data *client);
 void create_room(char *room, client_data *client);
 void list_room(client_data *client);
 void join_room(char *room, client_data *client);
+void edit_room(char *changed, char *new, client_data *client);
+void delete_room(char *room, client_data *client);
+void delete_all_rooms(client_data *client);
 
 // User Handlers
 void see_user(client_data *client);
@@ -696,6 +699,42 @@ void handle_input(void *arg){
 
                 // Call edit channel function
                 edit_channel(changed, new, client);
+
+            } else if (strcmp(type, "ROOM") == 0){
+                // Parse data from client
+                char *changed = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (changed == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing changed/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing changed or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if flag is valid
+                if (strcmp(flag, "TO") != 0){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing flag)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing flag)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Changed: %s, New: %s\n", client->username, flag, changed, new);
+
+                // Call edit room function
+                edit_room(changed, new, client);
                 
             } else {
                 // DEBUGGING
@@ -771,6 +810,38 @@ void handle_input(void *arg){
 
                 // Call delete channel function
                 delete_channel(channel, client);
+
+            } else if (strcmp(type, "ROOM") == 0){
+                // Parse data from client
+                char *room = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (room == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing room)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing room)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if ALL is used
+                if (strcmp(room, "ALL") == 0){
+                    // DEBUGGING
+                    printf("[%s] Room: %s\n", client->username, room);
+
+                    // Call delete all room function
+                    delete_all_rooms(client);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Room: %s\n", client->username, room);
+
+                // Call delete room function
+                delete_room(room, client);
 
             } else {
                 // DEBUGGING
@@ -1816,6 +1887,17 @@ void create_room(char *room, client_data *client) {
         return;
     }
 
+    // Check if room name is valid 
+    if (strcmp(room, "ALL") == 0) {
+        // DEBUGGING
+        printf("[%s][CREATE ROOM] Error: Invalid room name\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Invalid room name");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
     // Open auth of current channel
     char path_auth[MAX_BUFFER];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
@@ -2039,6 +2121,286 @@ void join_room(char *room, client_data *client) {
     // Send response to client
     sprintf(response, "MSG,Error: User is already in a room");
     send(client_fd, response, strlen(response), 0);
+}
+
+//===========//
+// EDIT ROOM //
+//===========//
+
+void edit_room(char *changed, char *new, client_data *client){
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT ROOM] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][EDIT ROOM] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT ROOM] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][EDIT ROOM] User is privileged\n", client->username);
+    }
+
+    // Prepare room path
+    char path_room[MAX_BUFFER];
+    sprintf(path_room, "%s/%s/%s", cwd, client->channel, changed);
+
+    // Check if room exists
+    struct stat statbuf;
+    if (stat(path_room, &statbuf) == -1) {
+        // DEBUGGING
+        printf("[%s][EDIT ROOM] Error: Room does not exist\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Room does not exist");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Rename room directory
+    char path_new[MAX_BUFFER];
+    sprintf(path_new, "%s/%s/%s", cwd, client->channel, new);
+    rename_directory(path_room, path_new);
+
+    // Check if edited room is the current room
+    if (strcmp(client->room, changed) == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT ROOM] Room name changed\n", client->username);
+
+        // Update client room
+        strcpy(client->room, new);
+
+        // Send response to client
+        sprintf(response, "ROOM,Room name changed to %s,%s", new, new);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } 
+    
+    // DEBUGGING
+    printf("[%s][EDIT ROOM] Room name changed\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Room name changed to %s", new);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//=============//
+// DELETE ROOM //
+//=============//
+
+void delete_room(char *room, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] User is privileged\n", client->username);
+    }
+
+    // Prepare room path
+    char path_room[MAX_BUFFER];
+    sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
+
+    // Check if room exists
+    struct stat statbuf;
+    if (stat(path_room, &statbuf) == -1) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Error: Room does not exist\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Room does not exist");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove room directory
+    remove_directory(path_room);
+
+    // Check if deleted room is the current room
+    if (strcmp(client->room, room) == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Room current deleted %s\n", client->username);
+
+        // Update client room
+        strcpy(client->room, "");
+
+        // Send response to client
+        sprintf(response, "EXIT,Room %s deleted,ROOM", room, room);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][DELETE ROOM] Room deleted\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Room %s deleted", room);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+void delete_all_rooms(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] User is privileged\n", client->username);
+    }
+
+    // Prepare channel path
+    char path_channel[MAX_BUFFER];
+    sprintf(path_channel, "%s/%s", cwd, client->channel);
+
+
+    // Open channel directory
+    DIR *dir = opendir(path_channel);
+
+    // Fail if directory cannot be opened
+    if (dir == NULL) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] Error: Unable to open directory\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open directory");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through directory
+    int rooms_found = 0;
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] Room: %s\n", client->username, entry->d_name);
+
+        // Skip admin directory
+        if (strcmp(entry->d_name, "admin") == 0) continue;
+
+        // Prepare entry path
+        char entry_path[MAX_BUFFER];
+        sprintf(entry_path, "%s/%s", path_channel, entry->d_name);
+
+        // Check if entry is a directory to be deleted
+        struct stat statbuf;
+        if (stat(entry_path, &statbuf) == -1) continue;
+        if (S_ISDIR(statbuf.st_mode)) {
+            // Increment rooms found
+            rooms_found++;
+
+            // Remove room directory
+            remove_directory(entry_path);
+        }
+    }
+
+    // Close directory
+    closedir(dir);
+
+    // DEBUGGING
+    printf("[%s][DELETE ALL ROOMS] Rooms found: %d\n", client->username, rooms_found);
+
+    // Send response to client
+    if (rooms_found == 0) {
+        sprintf(response, "MSG,No rooms found");
+        send(client_fd, response, strlen(response), 0);
+    } else {
+        sprintf(response, "MSG,Success: All rooms deleted");
+        send(client_fd, response, strlen(response), 0);
+    }
+
+    return;
 }
 
 //===========================================================================================//
