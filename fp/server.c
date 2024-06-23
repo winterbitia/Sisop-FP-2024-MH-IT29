@@ -101,11 +101,15 @@ void exit_user(client_data *client);
 
 // User Management Handlers
 int  check_user(client_data *client);
+int  check_ban(client_data *client);
+int  check_channel_perms(client_data *client);
 void edit_username_auth(char *username, char *newusername, client_data *client);
 void edit_username(char *username, char *newusername, client_data *client);
 void edit_password(char *username, char *newpassword, client_data *client);
 void del_username_auth(char *username, client_data *client);
 void remove_user(char *username, client_data *client);
+void ban_user(char *username, client_data *client);
+void unban_user(char *username, client_data *client);
 
 // Chat Handlers
 void send_chat(char *message, client_data *client);
@@ -322,6 +326,38 @@ void handle_input(void *arg){
             return;
         }
 
+        // Check if user is banned
+        int ban = check_ban(client);
+        if (ban){
+            // DEBUGGING
+            printf("[%s] User is banned\n", client->username);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER);
+            sprintf(response, "QUIT,Error: User is banned");
+            send(client_fd, response, strlen(response), 0);
+
+            // Close client connection
+            close(client_fd);
+            free(client);
+            pthread_exit(NULL);
+            return;
+        } else if (ban < 0){
+            // DEBUGGING
+            printf("[%s] Error: Unable to check ban\n", client->username);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER);
+            sprintf(response, "QUIT,Error: Unable to check ban");
+            send(client_fd, response, strlen(response), 0);
+
+            // Close client connection
+            close(client_fd);
+            free(client);
+            pthread_exit(NULL);
+            return;
+        }
+
         // Prepare parse data from client
         char *command = strtok(buffer, " ");
 
@@ -402,7 +438,7 @@ void handle_input(void *arg){
 
                     // Send response to client
                     memset(response, 0, MAX_BUFFER);
-                    sprintf(response, "MSG,Error: Invalid command (missing channel name or key)");
+                    sprintf(response, "MSG,Error: Invalid command (missing channel name/key)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
                 } else if (strcmp(flag, "-k") != 0){
@@ -748,6 +784,50 @@ void handle_input(void *arg){
                 remove_user(type, client);
             }
 
+ } else if (strcmp(command, "BAN") == 0){
+            // Parse data from client
+            char *target = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (target == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid ban (missing target)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing ban target)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, target);
+
+            // Call ban user function
+            ban_user(target, client);
+
+ } else if (strcmp(command, "UNBAN") == 0){
+            // Parse data from client
+            char *target = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (target == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid unban (missing target)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing unban target)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, target);
+
+            // Call unban user function
+            unban_user(target, client);
+
         } else {
             // DEBUGGING
             printf("[%s] Error: Command not found\n", client->username);
@@ -827,7 +907,7 @@ void register_user(char *username, char *password, client_data *client) {
     strcpy(hash,crypt(password, HASHCODE));
 
     // Set role to USER by default
-    char role[6];
+    char role[8];
     if (id == 0) strcpy(role, "ROOT");
     else         strcpy(role, "USER");
 
@@ -872,7 +952,7 @@ int login_user(char *username, char *password, client_data *client) {
     }
 
     // Loop through id, username, and password
-    int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
+    int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
         // DEBUGGING
         printf("[LOGIN] id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
@@ -1146,14 +1226,14 @@ void join_channel(char *channel, client_data *client) {
         return;
     }
 
-    // Loop through id and role
-    int id; char role[6];
-    while (fscanf(file, "%d,%*[^,],%s", &id, role) == 2) {
+    // Loop through username and role
+    char username[MAX_BUFFER]; char role[8];
+    while (fscanf(file, "%*d,%[^,],%s", username, role) == 2) {
         // DEBUGGING
-        printf("[%s][JOIN CHANNEL] id: %d, role: %s\n", client->username, id, role);
+        printf("[%s][JOIN CHANNEL] username: %s, role: %s\n", client->username, username, role);
 
-        // If there is an id match or user is root
-        if (client->id == id) {
+        // If there is a username match or user is root
+        if (strcmp(client->username, username) == 0) {
             // Check if user is banned
             if (strcmp(role, "BANNED") == 0) {
                 // DEBUGGING
@@ -1398,7 +1478,7 @@ void create_room(char *room, client_data *client) {
     }
 
     // Loop through id and role
-    int id; char role[6];
+    int id; char role[8];
     while (fscanf(file, "%d,%*[^,],%s", &id, role) == 2) {
         // DEBUGGING
         printf("[%s][CREATE ROOM] id: %d, role: %s\n", client->username, id, role);
@@ -1843,7 +1923,7 @@ void edit_username_auth(char *username, char *newusername, client_data *client){
         FILE *temp = fopen(temp_csv, "w");
 
         // Loop through id, username, and role
-        int id; char namecheck[MAX_BUFFER], role[6];
+        int id; char namecheck[MAX_BUFFER], role[8];
         while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
             // DEBUGGING
             printf("[%s][EDIT USERNAME AUTH] id: %d, name: %s, role: %s\n", client->username, id, namecheck, role);
@@ -1938,7 +2018,7 @@ void edit_username(char *username, char *newusername, client_data *client) {
     }
 
     // Loop until username matches
-    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
     int found = 0;
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
         // DEBUGGING
@@ -2034,7 +2114,7 @@ void edit_password(char *username, char *newpassword, client_data *client) {
     }
 
     // Loop until username matches
-    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
     int found = 0;
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
         // DEBUGGING
@@ -2145,7 +2225,7 @@ void del_username_auth(char *username, client_data *client) {
         FILE *temp = fopen(temp_csv, "w");
 
         // Loop through id, username, and role
-        int id; char namecheck[MAX_BUFFER], role[6];
+        int id; char namecheck[MAX_BUFFER], role[8];
         while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
             // DEBUGGING
             printf("[%s][DEL USERNAME AUTH] id: %d, name: %s, role: %s\n", client->username, id, namecheck, role);
@@ -2234,7 +2314,7 @@ void remove_user(char *username, client_data *client) {
     }
 
     // Loop until username matches
-    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
     int found = 0;
     while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
         // DEBUGGING
@@ -2296,6 +2376,435 @@ void remove_user(char *username, client_data *client) {
 
     // Call del_username_auth
     del_username_auth(username, client);
+    return;
+}
+
+//===========//
+// CHECK BAN //
+//===========//
+
+int check_ban(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][CHECK BAN] Error: User is not in a channel\n", client->username);
+
+        // Return 0 if user is not in a channel
+        return 0;
+    }
+
+    // Open auth file
+    char path_auth[MAX_BUFFER];
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
+    FILE *file = fopen(path_auth, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][CHECK BAN] Error: Unable to open file\n", client->username);
+
+        // Return -1 if file cannot be opened
+        return -1;
+    }
+
+    // Loop through id and username
+    int id; char role[8];
+    while (fscanf(file, "%d,%[^,],%s", &id, role) == 2) {
+        // DEBUGGING
+        printf("[%s][CHECK BAN] id: %d, role: %s\n", client->username, id, role);
+
+        // Check if username matches
+        if (id == client->id) 
+        // Check if role is banned
+        if (strcmp(role, "BANNED") == 0) {
+            // DEBUGGING
+            printf("[%s][CHECK BAN] Error: User is banned\n", client->username);
+
+            // Close file
+            fclose(file);
+
+            // Return 1 if user is banned
+            return 1;
+        } else break;
+    }
+
+    // Close file
+    fclose(file);
+
+    // DEBUGGING
+    printf("[%s][CHECK BAN] Success: User is not banned\n", client->username);
+
+    // Return 0 if user is not banned
+    return 0;
+
+}
+
+//=====================//
+// CHECK CHANNEL PERMS //
+//=====================//
+
+int check_channel_perms(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][CHECK PERMS] Error: User is not in a channel\n", client->username);
+
+        // Return -2 if user is not in a channel
+        return -2;
+    }
+
+    // Check channel permissions
+    FILE *file_channel = fopen(channels_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file_channel == NULL) {
+        // DEBUGGING
+        printf("[%s][CHECK PERMS] Error: Unable to open file\n", client->username);
+
+        // Return -1 if file cannot be opened
+        return -1;
+    }
+
+    // Loop through channel name to find permissions
+    int permission = 0; char channel[MAX_BUFFER];
+    while (fscanf(file_channel, "%*d,%[^,],%*s", channel) == 1) {
+        // DEBUGGING
+        printf("[%s][CHECK PERMS] Compare: %s-%s\n", client->channel, channel);
+
+        // Check channel name
+        if (strcmp(channel, client->channel) == 0) {
+            // Prepare auth path
+            char path_auth[MAX_BUFFER];
+            sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
+
+            // Open auth file
+            FILE *file_auth = fopen(path_auth, "r");
+
+            // Fail if file cannot be opened
+            if (file_auth == NULL) {
+                // DEBUGGING
+                printf("[%s][CHECK PERMS] Error: Unable to open file\n", client->username);
+
+                // Return -1 if file cannot be opened
+                return -1;
+            }
+
+            // Loop through id, username, and role
+            char namecheck[MAX_BUFFER], role[8];
+            while (fscanf(file_auth, "%*d,%[^,],%s", namecheck, role) == 2) {
+                // DEBUGGING
+                printf("[%s][CHECK PERMS] Client username: %s, role: %s\n", client->username, namecheck, role);
+
+                // Check if username matches
+                if (strcmp(namecheck, client->username) == 0)
+                // Check if role is root/admin
+                if (strcmp(role, "ROOT") == 0 || strcmp(role, "ADMIN") == 0) {
+                    // DEBUGGING
+                    printf("[%s][CHECK PERMS] Error: User is privileged\n", client->username);
+
+                    // Close files
+                    fclose(file_auth);
+                    fclose(file_channel);
+
+                    // Return 1 if user is privileged
+                    return 1;
+                }
+            }
+
+            // Close auth file
+            fclose(file_auth);
+        }
+    }
+
+    // Close channel file
+    fclose(file_channel);
+
+    // Return 0 if user is not privileged
+    return 0;
+}
+
+//=======================//
+// BAN USER FROM CHANNEL //
+//=======================//
+
+void ban_user(char *username, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][BAN USER] username: %s\n", client->username, username);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check permissions
+    int perms = check_channel_perms(client);
+    if (perms == -2) {
+        // DEBUGGING
+        printf("[%s][BAN USER] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][BAN USER] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][BAN USER] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][BAN USER] User is privileged\n", client->username);
+    }
+
+    // Check if user trying to ban self
+    if (strcmp(client->username, username) == 0) {
+        // DEBUGGING
+        printf("[%s][BAN USER] Error: User is trying to ban self\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is trying to ban self");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open auth of channel
+    char path_auth[MAX_BUFFER];
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
+    FILE *file_auth = fopen(path_auth, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER];
+    sprintf(temp_csv, "%s/%s/admin/.temp_auth.csv", cwd, client->channel);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file_auth == NULL) {
+        // DEBUGGING
+        printf("[%s][BAN USER] Error: Unable to open auth file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open auth file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through username and role
+    int id; char namecheck[MAX_BUFFER], role[8];
+    int found = 0;
+    while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
+        // DEBUGGING
+        printf("[%s][BAN USER] name: %s, role: %s\n", client->username, namecheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][BAN USER] Success: Username found\n", client->username);
+
+            // Check if role is not root/admin
+            if (strcmp(role, "ROOT") == 0 || strcmp(role, "ADMIN") == 0) {
+                // DEBUGGING
+                printf("[%s][BAN USER] Error: User is root/admin\n", client->username);
+
+                // Close files
+                fclose(file_auth);
+                fclose(temp);
+
+                // Remove temp file
+                remove(temp_csv);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is root/admin");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            // Write new role to temp file
+            fprintf(temp, "%d,%s,BANNED\n", id, namecheck);
+            found = 1;
+        } else {
+            // Write old role to temp file
+            fprintf(temp, "%d,%s,%s\n", id, namecheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file_auth);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][BAN USER] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(path_auth);
+    rename(temp_csv, path_auth);
+
+    // DEBUGGING
+    printf("[%s][BAN USER] Success: %s banned\n", client->username, username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: %s banned", username);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//=========================//
+// UNBAN USER FROM CHANNEL //
+//=========================//
+
+void unban_user(char *username, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][UNBAN USER] username: %s\n", client->username, username);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check permissions
+    int perms = check_channel_perms(client);
+    if (perms == -2) {
+        // DEBUGGING
+        printf("[%s][UNBAN USER] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][UNBAN USER] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][UNBAN USER] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][UNBAN USER] User is privileged\n", client->username);
+    }
+
+    // Open auth of channel
+    char path_auth[MAX_BUFFER];
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
+    FILE *file_auth = fopen(path_auth, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER];
+    sprintf(temp_csv, "%s/%s/admin/.temp_auth.csv", cwd, client->channel);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file_auth == NULL) {
+        // DEBUGGING
+        printf("[%s][UNBAN USER] Error: Unable to open auth file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open auth file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through username and role
+    int id; char namecheck[MAX_BUFFER], role[8];
+    int found = 0;
+    while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
+        // DEBUGGING
+        printf("[%s][UNBAN USER] name: %s, role: %s\n", client->username, namecheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][UNBAN USER] Success: Username found\n", client->username);
+
+            // Check if role is not root/admin
+            if (strcmp(role, "ROOT") == 0 || strcmp(role, "ADMIN") == 0) {
+                // DEBUGGING
+                printf("[%s][UNBAN USER] Error: User is root/admin\n", client->username);
+
+                // Close files
+                fclose(file_auth);
+                fclose(temp);
+
+                // Remove temp file
+                remove(temp_csv);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is root/admin");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            // Write new role to temp file
+            fprintf(temp, "%d,%s,USER\n", id, namecheck);
+            found = 1;
+        } else {
+            // Write old role to temp file
+            fprintf(temp, "%d,%s,%s\n", id, namecheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file_auth);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][UNBAN USER] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(path_auth);
+    rename(temp_csv, path_auth);
+
+    // DEBUGGING
+    printf("[%s][UNBAN USER] Success: %s unbanned\n", client->username, username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: %s unbanned", username);
+    send(client_fd, response, strlen(response), 0);
     return;
 }
 
