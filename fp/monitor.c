@@ -24,6 +24,7 @@ char channel[100]="";
 char room[100]="";
 
 // Pre-declaration
+void *input_handler(void *arg);
 void connect_server();
 void clear_terminal();
 void parse_command(char *buffer);
@@ -75,35 +76,43 @@ int main(int argc, char *argv[]) {
         // Get chat if client is in a room
         if (strlen(room) > 0) {
             clear_terminal();
-            printf("=================================\n");
+            printf("==========================================\n");
             handle_command("SEE CHAT");
-            printf("=================================\n");
+            printf("==========================================\n");
         }
 
-        // Print user prompt
-        if (strlen(room) > 0) 
-            printf("[%s/%s/%s] ", username, channel, room);
-        else if (strlen(channel) > 0) 
-            printf("[%s/%s] ", username, channel);
-        else 
-            printf("[%s] ", username);
-
-        // Get user input from buffer
-        memset(buffer, 0, sizeof(buffer));
-        fgets(buffer, sizeof(buffer), stdin);
-        buffer[strcspn(buffer, "\n")] = 0;
-
-        // DEBUGGING
-        // printf("Sending: %s\n", buffer);
-
-        // Parse command
-        parse_command(buffer);
+        // Handle user input
+        pthread_t tid;
+        pthread_create(&tid, NULL, input_handler, NULL);
     }
 }
 
 //=========//
 // METHODS //
 //=========//
+
+// Input handler function
+void *input_handler(void *arg) {
+    // Print user prompt
+    if (strlen(room) > 0) 
+        printf("[%s/%s/%s] ", username, channel, room);
+    else if (strlen(channel) > 0) 
+        printf("[%s/%s] ", username, channel);
+    else 
+        printf("[%s] ", username);
+
+    // Get user input
+    char buffer[MAX_BUFFER];
+    memset(buffer, 0, sizeof(buffer));
+    fgets(buffer, sizeof(buffer), stdin);
+    buffer[strcspn(buffer, "\n")] = 0;
+
+    // DEBUGGING
+    // printf("Sending: %s\n", buffer);
+
+    // Parse command
+    parse_command(buffer);
+}
 
 // Connect to server
 void connect_server() {
@@ -194,10 +203,10 @@ void parse_command(char *buffer) {
         char *rname = strtok(NULL, " ");
 
         // DEBUGGING
-        printf("Command1: %s\n", command1);
-        printf("Channel: %s\n", cname);
-        printf("Command2: %s\n", command2);
-        printf("Room: %s\n", rname);
+        // printf("Command1: %s\n", command1);
+        // printf("Channel: %s\n", cname);
+        // printf("Command2: %s\n", command2);
+        // printf("Room: %s\n", rname);
         
         // Check if command is valid
         if (command2 == NULL || cname == NULL || rname == NULL) {
