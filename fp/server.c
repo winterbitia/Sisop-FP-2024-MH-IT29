@@ -375,8 +375,23 @@ void handle_input(void *arg){
 
         // Start command handling
         if (strcmp(command, "EXIT") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
             // DEBUGGING
             printf("[%s][EXIT]\n", client->username);
+
+            // Check for monitor type
+            if (type != NULL && strcmp(type, "MONITOR") == 0){
+                // DEBUGGING
+                printf("[%s] Monitor exit\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "EXIT,Monitor exit");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
 
             // Call exit user function
             exit_user(client);
@@ -1613,6 +1628,17 @@ int verify_key(char *channel, client_data *client) {
     // Parse data from client
     char *command = strtok(buffer, " ");
     char *keycheck = strtok(NULL, " ");
+
+    // Check if sent from monitor
+    if (strcmp(command, "KEY") != 0) {
+        // DEBUGGING
+        printf("[%s][VERIFY KEY] Error: Monitor send\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Cant verify key from monitor");
+        send(client_fd, response, strlen(response), 0);
+        return -1;
+    }
 
     // Check if key is not null
     if (keycheck == NULL) {
