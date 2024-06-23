@@ -173,6 +173,8 @@ int handle_command(const char *buffer) {
         // Check if exiting channel
         if (strcmp(exit_type, "CHANNEL") == 0) {
             memset(channel, 0, 100);
+            // also reset room in case user is in a room
+            memset(room, 0, 100);
             printf("%s\n", message);
             return 0;
         }

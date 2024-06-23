@@ -1846,6 +1846,9 @@ void delete_channel(char *channel, client_data *client) {
         // Update client channel
         strcpy(client->channel, "");
 
+        // Update client room in case client is in a room
+        strcpy(client->room, "");
+
         // Send response to client
         sprintf(response, "EXIT,Channel %s deleted,CHANNEL", channel, channel);
         send(client_fd, response, strlen(response), 0);
@@ -2390,6 +2393,20 @@ void delete_all_rooms(client_data *client) {
 
     // DEBUGGING
     printf("[%s][DELETE ALL ROOMS] Rooms found: %d\n", client->username, rooms_found);
+
+    // Check if user is in a room
+    if (strlen(client->room) != 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] User is in a room\n", client->username);
+
+        // Update client room
+        strcpy(client->room, "");
+
+        // Send response to client
+        sprintf(response, "EXIT,All rooms deleted,ROOM");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 
     // Send response to client
     if (rooms_found == 0) {
