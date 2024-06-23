@@ -99,9 +99,11 @@ void see_user(client_data *client);
 void list_user(client_data *client);
 void exit_user(client_data *client);
 
-// User Management Handlers (DOES NOT WORK!!)
-void edit_username(char *username, char *new_username, client_data *client);
-void edit_password(char *username, char *new_password, client_data *client);
+// User Management Handlers
+void edit_username_auth(char *username, char *newusername, client_data *client);
+void edit_username(char *username, char *newusername, client_data *client);
+void edit_password(char *username, char *newpassword, client_data *client);
+void remove_user(char *username, client_data *client);
 
 // Chat Handlers
 void send_chat(char *message, client_data *client);
@@ -692,6 +694,41 @@ void handle_input(void *arg){
             // Call send chat function
             send_chat(message, client);
 
+ } else if (strcmp(command, "REMOVE") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid remove (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Invalid command (missing remove type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Check if type is USER
+            if (strcmp(type, "USER") == 0){
+                // Call kick user function
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER);
+                sprintf(response, "MSG,Error: Command not found");
+                send(client_fd, response, strlen(response), 0);
+            } else {
+                // DEBUGGING
+                printf("[%s] Target: %s\n", client->username, type);
+
+                // Call remove user function
+                remove_user(type, client);
+            }
+
         } else {
             // DEBUGGING
             printf("[%s] Error: Command not found\n", client->username);
@@ -718,13 +755,14 @@ void register_user(char *username, char *password, client_data *client) {
     // Prepare response
     char response[MAX_BUFFER];
 
-    // Check if username has comma
-    if (strchr(username, ',') != NULL) {
+    // Check if username has comma or is called USER
+    if (strchr(username, ',') != NULL
+        || strcmp(username, "USER") == 0) {
         // DEBUGGING
-        printf("[REGISTER] Error: Username cannot contain comma\n");
+        printf("[REGISTER] Error: Username not allowed\n");
 
         // Send response to client
-        sprintf(response, "MSG,Error: Username cannot contain comma");
+        sprintf(response, "MSG,Error: Username not allowed");
         send(client_fd, response, strlen(response), 0);
         return;
     }
@@ -1802,10 +1840,10 @@ void edit_username(char *username, char *newusername, client_data *client) {
     // Check if user is editing self
     if (strcmp(client->username, username) != 0) {
         // DEBUGGING
-        printf("[%s][EDIT USERNAME] Error: User is not admin/root\n", client->username);
+        printf("[%s][EDIT USERNAME] Error: User is not root\n", client->username);
 
         // Send response to client
-        sprintf(response, "MSG,Error: User is not admin/root");
+        sprintf(response, "MSG,Error: User is not root");
         send(client_fd, response, strlen(response), 0);
         return;
     }
@@ -1897,10 +1935,10 @@ void edit_password(char *username, char *newpassword, client_data *client) {
     // Check if user is editing self
     if (strcmp(client->username, username) != 0) {
         // DEBUGGING
-        printf("[%s][EDIT PASSWORD] Error: User is not admin/root\n", client->username);
+        printf("[%s][EDIT PASSWORD] Error: User is not root\n", client->username);
 
         // Send response to client
-        sprintf(response, "MSG,Error: User is not admin/root");
+        sprintf(response, "MSG,Error: User is not root");
         send(client_fd, response, strlen(response), 0);
         return;
     }
@@ -1978,6 +2016,127 @@ void edit_password(char *username, char *newpassword, client_data *client) {
     sprintf(response, "MSG,Success: Password edited");
     send(client_fd, response, strlen(response), 0);
     return;    
+}
+
+//=============//
+// REMOVE USER //
+//=============//
+
+void remove_user(char *username, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][REMOVE USER] username: %s\n", client->username, username);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is trying to remove self
+    if (strcmp(client->username, username) == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: User is trying to remove self\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is trying to remove self");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER];
+    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop until username matches
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // Check if role is not root
+            if (strcmp(role, "ROOT") == 0) {
+                // DEBUGGING
+                printf("[%s][REMOVE USER] Error: User is root\n", client->username);
+
+                // Close files
+                fclose(file);
+                fclose(temp);
+
+                // Remove temp file
+                remove(temp_csv);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is root");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            // DEBUGGING
+            printf("[%s][REMOVE USER] Success: Username found\n", client->username);
+            found = 1;
+        } else {
+            // Write old username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(users_csv);
+    rename(temp_csv, users_csv);
+
+    // DEBUGGING
+    printf("[%s][REMOVE USER] Success: User removed\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: User removed");
+    send(client_fd, response, strlen(response), 0);
+    return;
 }
 
 //===========================================================================================//
