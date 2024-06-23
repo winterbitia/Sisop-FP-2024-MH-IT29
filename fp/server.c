@@ -110,6 +110,7 @@ void del_username_auth(char *username, client_data *client);
 void remove_user(char *username, client_data *client);
 void ban_user(char *username, client_data *client);
 void unban_user(char *username, client_data *client);
+void kick_user(char *username, client_data *client);
 
 // Chat Handlers
 void send_chat(char *message, client_data *client);
@@ -770,12 +771,26 @@ void handle_input(void *arg){
 
             // Check if type is USER
             if (strcmp(type, "USER") == 0){
-                // Call kick user function
+                // Parse data from client
+                char *target = strtok(NULL, " ");
 
-                // Send response to client
-                memset(response, 0, MAX_BUFFER);
-                sprintf(response, "MSG,Error: Command not found");
-                send(client_fd, response, strlen(response), 0);
+                // Check if command is valid
+                if (target == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid remove (missing target)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing remove target)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Target: %s\n", client->username, type);
+
+                // Call kick user function
+                kick_user(target, client);
             } else {
                 // DEBUGGING
                 printf("[%s] Target: %s\n", client->username, type);
@@ -2669,6 +2684,121 @@ void ban_user(char *username, client_data *client) {
 
     // Send response to client
     sprintf(response, "MSG,Success: %s banned", username);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//========================//
+// KICK USER FROM CHANNEL //
+//========================//
+
+void kick_user(char *username, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][KICK USER] username: %s\n", client->username, username);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check permissions
+    int perms = check_channel_perms(client);
+    if (perms == -2) {
+        // DEBUGGING
+        printf("[%s][KICK USER] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][KICK USER] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][KICK USER] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][KICK USER] User is privileged\n", client->username);
+    }
+
+    // Open auth of channel
+    char path_auth[MAX_BUFFER];
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
+    FILE *file_auth = fopen(path_auth, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER];
+    sprintf(temp_csv, "%s/%s/admin/.temp_auth.csv", cwd, client->channel);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file_auth == NULL) {
+        // DEBUGGING
+        printf("[%s][KICK USER] Error: Unable to open auth file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open auth file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through username and role
+    int id; char namecheck[MAX_BUFFER], role[8];
+    int found = 0;
+
+    while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
+        // DEBUGGING
+        printf("[%s][KICK USER] name: %s, role: %s\n", client->username, namecheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][KICK USER] Success: Username found\n", client->username);
+            found = 1;
+        } else {
+            // Write old role to temp file
+            fprintf(temp, "%d,%s,%s\n", id, namecheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file_auth);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][KICK USER] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(path_auth);
+    rename(temp_csv, path_auth);
+
+    // DEBUGGING
+    printf("[%s][KICK USER] Success: %s kicked\n", client->username, username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: %s kicked", username);
     send(client_fd, response, strlen(response), 0);
     return;
 }
