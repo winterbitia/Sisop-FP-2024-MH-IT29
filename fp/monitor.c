@@ -74,16 +74,27 @@ int main(int argc, char *argv[]) {
     // Print user prompt
     while(1){
         // Get chat if client is in a room
-        if (strlen(room) > 0) {
+        while (strlen(room) > 0) {
             clear_terminal();
             printf("==========================================\n");
             handle_command("SEE CHAT");
-            printf("==========================================\n");
+            printf("==========================================\n"
+                   "[!] Monitor refreshes every 3 seconds\n"
+                   "[!] Type EXIT to leave the room\n"
+                   "==========================================\n");  
+
+            // Handle user input
+            pthread_t tid;
+            pthread_create(&tid, NULL, input_handler, NULL);
+
+            // Refresh every 3 seconds
+            sleep(3); pthread_cancel(tid);
         }
 
         // Handle user input
         pthread_t tid;
         pthread_create(&tid, NULL, input_handler, NULL);
+        pthread_join(tid, NULL);
     }
 }
 
