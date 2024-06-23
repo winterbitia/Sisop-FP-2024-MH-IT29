@@ -342,30 +342,32 @@ void handle_input(void *arg){
             // DEBUGGING
             printf("[%s] User is banned\n", client->username);
 
+            // Update client channel and room
+            memset(client->channel, 0, 100);
+            memset(client->room, 0, 100);
+
             // Send response to client
             memset(response, 0, MAX_BUFFER);
-            sprintf(response, "QUIT,Error: Unable to access channel");
+            sprintf(response, "EXIT,Error: User is banned,CHANNEL");
             send(client_fd, response, strlen(response), 0);
 
-            // Close client connection
-            close(client_fd);
-            free(client);
-            pthread_exit(NULL);
-            return;
+            // Accept next command
+            continue;
         } else if (ban < 0){
             // DEBUGGING
             printf("[%s] Error: Unable to check ban\n", client->username);
 
+            // Update client channel and room
+            memset(client->channel, 0, 100);
+            memset(client->room, 0, 100);
+
             // Send response to client
             memset(response, 0, MAX_BUFFER);
-            sprintf(response, "QUIT,Error: Unable to check ban");
+            sprintf(response, "EXIT,Error: Unable to check ban,CHANNEL");
             send(client_fd, response, strlen(response), 0);
 
-            // Close client connection
-            close(client_fd);
-            free(client);
-            pthread_exit(NULL);
-            return;
+            // Accept next command
+            continue;
         }
 
         // Prepare parse data from client
