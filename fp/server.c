@@ -100,9 +100,11 @@ void list_user(client_data *client);
 void exit_user(client_data *client);
 
 // User Management Handlers
+int  check_user(client_data *client);
 void edit_username_auth(char *username, char *newusername, client_data *client);
 void edit_username(char *username, char *newusername, client_data *client);
 void edit_password(char *username, char *newpassword, client_data *client);
+void del_username_auth(char *username, client_data *client);
 void remove_user(char *username, client_data *client);
 
 // Chat Handlers
@@ -301,6 +303,23 @@ void handle_input(void *arg){
         if (recv(client_fd, buffer, MAX_BUFFER, 0) < 0){
             perror("recv failed");
             exit(EXIT_FAILURE);
+        }
+
+        // Check if user still exists
+        if (!check_user(client)){
+            // DEBUGGING
+            printf("[%s] User does not exist\n", client->username);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER);
+            sprintf(response, "QUIT,Error: User does not exist");
+            send(client_fd, response, strlen(response), 0);
+
+            // Close client connection
+            close(client_fd);
+            free(client);
+            pthread_exit(NULL);
+            return;
         }
 
         // Prepare parse data from client
@@ -1591,6 +1610,58 @@ void join_room(char *room, client_data *client) {
 //------------------------------------------- USERS -----------------------------------------//
 //===========================================================================================//
 
+//======================//
+// CHECK USER EXISTENCE //
+//======================//
+
+int check_user(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][CHECK USER] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return 0;
+    }
+
+    // Loop through id and username
+    int id; char namecheck[MAX_BUFFER];
+    while (fscanf(file, "%d,%[^,],%*s", &id, namecheck) == 2) {
+        // DEBUGGING
+        printf("[%s][CHECK USER] id: %d, name: %s\n", client->username, id, namecheck);
+
+        // Return 1 if user exists
+        if (strcmp(namecheck, client->username) == 0) {
+            // DEBUGGING
+            printf("[%s][CHECK USER] Success: User exists\n", client->username);
+
+            // Close file
+            fclose(file);
+            return 1;
+        }
+    }
+
+    // Close file
+    fclose(file);
+
+    // DEBUGGING
+    printf("[%s][CHECK USER] Error: User does not exist\n", client->username);
+
+    // Return 0 if user does not exist
+    return 0;
+}
+
+
 //=================//
 // PRINT USER DATA //
 //=================//
@@ -2018,6 +2089,96 @@ void edit_password(char *username, char *newpassword, client_data *client) {
     return;    
 }
 
+//===============//
+// DEL AUTH USER //
+//===============//
+
+void del_username_auth(char *username, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][DEL USERNAME AUTH] username: %s\n", client->username, username);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Loop through all channels
+    FILE *file_channel = fopen(channels_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file_channel == NULL) {
+        // DEBUGGING
+        printf("[%s][DEL USERNAME AUTH] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        char response[MAX_BUFFER];
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through channel name
+    char channel[MAX_BUFFER];
+    while (fscanf(file_channel, "%*d,%[^,],%*s", channel) == 1) {
+        // Prepare auth path
+        char path_auth[MAX_BUFFER];
+        sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
+
+        // Open auth file
+        FILE *file_auth = fopen(path_auth, "r");
+
+        // Fail if file cannot be opened
+        if (file_auth == NULL) {
+            // DEBUGGING
+            printf("[%s][DEL USERNAME AUTH] Error: Unable to open file\n", client->username);
+
+            // Send response to client
+            char response[MAX_BUFFER];
+            sprintf(response, "MSG,Error: Unable to open file");
+            send(client_fd, response, strlen(response), 0);
+            return;
+        }
+
+        // Open temp file
+        char temp_csv[MAX_BUFFER];
+        sprintf(temp_csv, "%s/.temp_auth.csv", cwd);
+        FILE *temp = fopen(temp_csv, "w");
+
+        // Loop through id, username, and role
+        int id; char namecheck[MAX_BUFFER], role[6];
+        while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
+            // DEBUGGING
+            printf("[%s][DEL USERNAME AUTH] id: %d, name: %s, role: %s\n", client->username, id, namecheck, role);
+
+            // Check if username matches
+            if (strcmp(namecheck, username) == 0) {
+                // DEBUGGING
+                printf("[%s][DEL USERNAME AUTH] Success: Username found\n", client->username);
+            } else {
+                // Write old username to temp file
+                fprintf(temp, "%d,%s,%s\n", id, namecheck, role);
+            }
+        }
+
+        // Close files
+        fclose(file_auth);
+        fclose(temp);
+
+        // Remove old file and rename temp file
+        remove(path_auth);
+        rename(temp_csv, path_auth);
+    }
+
+    // DEBUGGING
+    printf("[%s][DEL USERNAME AUTH] Success: User removed\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: User removed");
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+
 //=============//
 // REMOVE USER //
 //=============//
@@ -2133,9 +2294,8 @@ void remove_user(char *username, client_data *client) {
     // DEBUGGING
     printf("[%s][REMOVE USER] Success: User removed\n", client->username);
 
-    // Send response to client
-    sprintf(response, "MSG,Success: User removed");
-    send(client_fd, response, strlen(response), 0);
+    // Call del_username_auth
+    del_username_auth(username, client);
     return;
 }
 
