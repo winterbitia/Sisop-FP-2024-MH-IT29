@@ -1668,6 +1668,98 @@ void exit_user(client_data *client){
 }
 
 //================//
+// EDIT AUTH USER //
+//================//
+
+void edit_username_auth(char *username, char *newusername, client_data *client){
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME AUTH] username: %s, newusername: %s\n", client->username, username, newusername);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Loop through all channels
+    FILE *file_channel = fopen(channels_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file_channel == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME AUTH] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        char response[MAX_BUFFER];
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through channel name
+    char channel[MAX_BUFFER];
+    while (fscanf(file_channel, "%*d,%[^,],%*s", channel) == 1) {
+        // Prepare auth path
+        char path_auth[MAX_BUFFER];
+        sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
+
+        // Open auth file
+        FILE *file_auth = fopen(path_auth, "r");
+
+        // Fail if file cannot be opened
+        if (file_auth == NULL) {
+            // DEBUGGING
+            printf("[%s][EDIT USERNAME AUTH] Error: Unable to open file\n", client->username);
+
+            // Send response to client
+            char response[MAX_BUFFER];
+            sprintf(response, "MSG,Error: Unable to open file");
+            send(client_fd, response, strlen(response), 0);
+            return;
+        }
+
+        // Open temp file
+        char temp_csv[MAX_BUFFER];
+        sprintf(temp_csv, "%s/.temp_auth.csv", cwd);
+        FILE *temp = fopen(temp_csv, "w");
+
+        // Loop through id, username, and role
+        int id; char namecheck[MAX_BUFFER], role[6];
+        while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
+            // DEBUGGING
+            printf("[%s][EDIT USERNAME AUTH] id: %d, name: %s, role: %s\n", client->username, id, namecheck, role);
+
+            // Check if username matches
+            if (strcmp(namecheck, username) == 0) {
+                // DEBUGGING
+                printf("[%s][EDIT USERNAME AUTH] Success: Username found\n", client->username);
+
+                // Write new username to temp file
+                fprintf(temp, "%d,%s,%s\n", id, newusername, role);
+            } else {
+                // Write old username to temp file
+                fprintf(temp, "%d,%s,%s\n", id, namecheck, role);
+            }
+        }
+
+        // Close files
+        fclose(file_auth);
+        fclose(temp);
+
+        // Remove old file and rename temp file
+        remove(path_auth);
+        rename(temp_csv, path_auth);
+    }
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] Success: Username edited\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Username edited");
+    send(client_fd, response, strlen(response), 0);
+}
+
+
+//================//
 // EDIT USER NAME //
 //================//
 
@@ -1676,9 +1768,6 @@ void edit_username(char *username, char *newusername, client_data *client) {
 
     // DEBUGGING
     printf("[%s][EDIT USERNAME] username: %s, newusername: %s\n", client->username, username, newusername);
-
-    // Open file
-    FILE *file = fopen(users_csv, "r+");
 
     // Prepare response
     char response[MAX_BUFFER];
@@ -1695,6 +1784,13 @@ void edit_username(char *username, char *newusername, client_data *client) {
         send(client_fd, response, strlen(response), 0);
         return;
     }
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER];
+    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
 
     // Fail if file cannot be opened
     if (file == NULL) {
@@ -1707,15 +1803,54 @@ void edit_username(char *username, char *newusername, client_data *client) {
         return;
     }
 
-    // MAKE THE LOOP WORK PLEASE
+    // Loop until username matches
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][EDIT USERNAME] Success: Username found\n", client->username);
+
+            // Write new username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, newusername, passcheck, role);
+            found = 1;
+        } else {
+            // Write old username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(users_csv);
+    rename(temp_csv, users_csv);
 
     // DEBUGGING
-    printf("[%s][EDIT USERNAME] Error: Username not found\n", client->username);
+    printf("[%s][EDIT USERNAME] Success: Main username edited\n", client->username);
 
-    // Send response to client
-    sprintf(response, "MSG,Error: Username not found");
-    send(client_fd, response, strlen(response), 0);
-    fclose(file);
+    // Call edit_username_auth
+    edit_username_auth(username, newusername, client);
     return;
 }
 
@@ -1728,9 +1863,6 @@ void edit_password(char *username, char *newpassword, client_data *client) {
 
     // DEBUGGING
     printf("[%s][EDIT PASSWORD] username: %s, newpassword: %s\n", client->username, username, newpassword);
-
-    // Open file
-    FILE *file = fopen(users_csv, "r+");
 
     // Prepare response
     char response[MAX_BUFFER];
@@ -1748,6 +1880,14 @@ void edit_password(char *username, char *newpassword, client_data *client) {
         return;
     }
 
+    // Open file
+    FILE *file = fopen(users_csv, "r+");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER];
+    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
+
     // Fail if file cannot be opened
     if (file == NULL) {
         // DEBUGGING
@@ -1759,16 +1899,60 @@ void edit_password(char *username, char *newpassword, client_data *client) {
         return;
     }
 
-    // MAKE THE LOOP WORK PLEASE
+    // Loop until username matches
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[6];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][EDIT PASSWORD] Success: Username found\n", client->username);
+
+            // Hash new password
+            char hash[MAX_BUFFER];
+            strcpy(hash,crypt(newpassword, HASHCODE));
+
+            // Write new password to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, hash, role);
+            found = 1;
+        } else {
+            // Write old password to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(users_csv);
+    rename(temp_csv, users_csv);
 
     // DEBUGGING
-    printf("[%s][EDIT PASSWORD] Error: Username not found\n", client->username);
+    printf("[%s][EDIT PASSWORD] Success: Password edited\n", client->username);
 
     // Send response to client
-    sprintf(response, "MSG,Error: Username not found");
+    sprintf(response, "MSG,Success: Password edited");
     send(client_fd, response, strlen(response), 0);
-    fclose(file);
-    return;
+    return;    
 }
 
 //===========================================================================================//
