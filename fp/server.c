@@ -715,11 +715,22 @@ void handle_input(void *arg){
 void register_user(char *username, char *password, client_data *client) {
     int client_fd = client->socket_fd;
 
-    // Open file
-    FILE *file = fopen(users_csv, "a+");
-
     // Prepare response
     char response[MAX_BUFFER];
+
+    // Check if username has comma
+    if (strchr(username, ',') != NULL) {
+        // DEBUGGING
+        printf("[REGISTER] Error: Username cannot contain comma\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username cannot contain comma");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open file
+    FILE *file = fopen(users_csv, "a+");
 
     // Fail if file cannot be opened
     if (file == NULL) {
@@ -782,15 +793,15 @@ void register_user(char *username, char *password, client_data *client) {
 int login_user(char *username, char *password, client_data *client) {
     int client_fd = client->socket_fd;
 
+    // Prepare response
+    char response[MAX_BUFFER];
+
     // Hash password from input
     char hash[MAX_BUFFER];
     strcpy(hash,crypt(password, HASHCODE));
     
     // Open file
     FILE *file = fopen(users_csv, "r");
-
-    // Prepare response
-    char response[MAX_BUFFER];
 
     // Fail if file cannot be opened
     if (file == NULL) {
@@ -1750,8 +1761,22 @@ void edit_username_auth(char *username, char *newusername, client_data *client){
         rename(temp_csv, path_auth);
     }
 
+    // Check if user is editing self
+    if (strcmp(client->username, username) == 0) {
+        // Update client username
+        strcpy(client->username, newusername);
+
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME AUTH] Success: Username self-edit\n", client->username);
+
+        // Send response to client
+        sprintf(response, "USERNAME,Success: Username edited,%s", newusername);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
     // DEBUGGING
-    printf("[%s][EDIT USERNAME] Success: Username edited\n", client->username);
+    printf("[%s][EDIT USERNAME AUTH] Success: Username edited\n", client->username);
 
     // Send response to client
     sprintf(response, "MSG,Success: Username edited");

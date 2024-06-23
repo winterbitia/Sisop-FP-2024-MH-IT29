@@ -185,6 +185,23 @@ int handle_command(const char *buffer) {
         }
     }
 
+    // Username change
+    else if (strcmp(type, "USERNAME") == 0){
+        // Parse new username
+        char *new_username = strtok(NULL, ",");
+
+        // Check if parsing is correct
+        if (new_username == NULL) {
+            perror("new username is empty");
+            exit(EXIT_FAILURE);
+        }
+
+        // Copy new username
+        strcpy(username, new_username);
+        printf("%s\n", message);
+        return 0;
+    }
+
     // Key request
     else if (strcmp(type, "KEY") == 0){
         printf("%s\n", message);
