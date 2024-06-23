@@ -129,6 +129,7 @@ void make_directory(char *path);
 void rename_directory(char *path, char *newpath);
 void remove_directory(char *path);
 char* get_timestamp();
+void write_log(char *channel, char *message);
 
 
 //===========================================================================================//
@@ -337,13 +338,13 @@ void handle_input(void *arg){
 
         // Check if user is banned
         int ban = check_ban(client);
-        if (ban){
+        if (ban == 1){
             // DEBUGGING
             printf("[%s] User is banned\n", client->username);
 
             // Send response to client
             memset(response, 0, MAX_BUFFER);
-            sprintf(response, "QUIT,Error: User is banned");
+            sprintf(response, "QUIT,Error: Unable to access channel");
             send(client_fd, response, strlen(response), 0);
 
             // Close client connection
@@ -1311,6 +1312,11 @@ void create_channel(char *channel, char *key, client_data *client) {
     // DEBUGGING
     printf("[%s][CREATE CHANNEL] Success: Channel %s created\n", client->username, channel);
 
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s created channel \"%s\"\n", client->username, channel);
+    write_log(channel, message);
+
     // Send response to client
     sprintf(response, "MSG,Success: Channel %s created", channel);
     send(client_fd, response, strlen(response), 0);
@@ -1445,6 +1451,11 @@ void join_channel(char *channel, client_data *client) {
             // Update client channel
             strcpy(client->channel, channel);
 
+            // Write to log
+            char message[MAX_BUFFER];
+            sprintf(message, "%s joined channel \"%s\"\n", client->username, channel);
+            write_log(channel, message);
+
             // Send response to client
             if (strcmp(client->role, "ROOT") == 0)
                 sprintf(response, "CHANNEL,Joined channel %s as ROOT,%s", channel, channel);
@@ -1469,6 +1480,10 @@ void join_channel(char *channel, client_data *client) {
         // Update client channel
         strcpy(client->channel, channel);
 
+        // Write to log
+        char message[MAX_BUFFER];
+        sprintf(message, "%s joined channel \"%s\" as ROOT\n", client->username, channel);
+
         // Send response to client
         sprintf(response, "CHANNEL,Joined channel %s as ROOT,%s", channel, channel);
         send(client_fd, response, strlen(response), 0);
@@ -1488,6 +1503,11 @@ void join_channel(char *channel, client_data *client) {
 
         // Update client channel
         strcpy(client->channel, channel);
+
+        // Write to log
+        char message[MAX_BUFFER];
+        sprintf(message, "%s verified for channel \"%s\"\n", client->username, channel);
+        write_log(channel, message);
 
         // Send response to client
         sprintf(response, "CHANNEL,Joined channel %s,%s", channel, channel);
@@ -1728,6 +1748,11 @@ void edit_channel(char *changed, char *new, client_data *client){
 
         // Update client channel
         strcpy(client->channel, new);
+
+        // Write to log
+        char message[MAX_BUFFER];
+        sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
+        write_log(new, message);
 
         // Send response to client
         sprintf(response, "CHANNEL,Channel name changed to %s,%s", new, new);
@@ -1976,6 +2001,11 @@ void create_room(char *room, client_data *client) {
     // Close file
     fclose(file_chat);
 
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s created room \"%s\"\n", client->username, room);
+    write_log(client->channel, message);
+
     // Send response to client
     sprintf(response, "MSG,Success: Room %s created", room);
     send(client_fd, response, strlen(response), 0);
@@ -2112,6 +2142,11 @@ void join_room(char *room, client_data *client) {
         // Update client room
         strcpy(client->room, room);
 
+        // Write to log
+        char message[MAX_BUFFER];
+        sprintf(message, "%s joined room \"%s\"\n", client->username, room);
+        write_log(client->channel, message);
+
         // Send response to client
         sprintf(response, "ROOM,Joined room %s,%s", room, room);
         send(client_fd, response, strlen(response), 0);
@@ -2199,6 +2234,11 @@ void edit_room(char *changed, char *new, client_data *client){
         // Update client room
         strcpy(client->room, new);
 
+        // Write to log
+        char message[MAX_BUFFER];
+        sprintf(message, "%s changed room name to \"%s\"\n", client->username, new);
+        write_log(client->channel, message);
+
         // Send response to client
         sprintf(response, "ROOM,Room name changed to %s,%s", new, new);
         send(client_fd, response, strlen(response), 0);
@@ -2207,6 +2247,11 @@ void edit_room(char *changed, char *new, client_data *client){
     
     // DEBUGGING
     printf("[%s][EDIT ROOM] Room name changed\n", client->username);
+
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s changed room name \"%s\" to \"%s\"\n", client->username, changed, new);
+    write_log(client->channel, message);
 
     // Send response to client
     sprintf(response, "MSG,Success: Room name changed to %s", new);
@@ -2285,6 +2330,11 @@ void delete_room(char *room, client_data *client) {
         // Update client room
         strcpy(client->room, "");
 
+        // Write to log
+        char message[MAX_BUFFER];
+        sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
+        write_log(client->channel, message);
+
         // Send response to client
         sprintf(response, "EXIT,Room %s deleted,ROOM", room, room);
         send(client_fd, response, strlen(response), 0);
@@ -2293,6 +2343,11 @@ void delete_room(char *room, client_data *client) {
 
     // DEBUGGING
     printf("[%s][DELETE ROOM] Room deleted\n", client->username);
+
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
+    write_log(client->channel, message);
 
     // Send response to client
     sprintf(response, "MSG,Success: Room %s deleted", room);
@@ -2393,6 +2448,11 @@ void delete_all_rooms(client_data *client) {
 
     // DEBUGGING
     printf("[%s][DELETE ALL ROOMS] Rooms found: %d\n", client->username, rooms_found);
+
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s deleted all rooms of channel \"%s\"\n", client->username, client->channel);
+    write_log(client->channel, message);
 
     // Check if user is in a room
     if (strlen(client->room) != 0) {
@@ -2666,6 +2726,11 @@ void edit_username_auth(char *username, char *newusername, client_data *client){
             if (strcmp(namecheck, username) == 0) {
                 // DEBUGGING
                 printf("[%s][EDIT USERNAME AUTH] Success: Username found\n", client->username);
+
+                // Write to log
+                char message[MAX_BUFFER];
+                sprintf(message, "%s changed username %s to %s\n", client->username, username, newusername);
+                write_log(channel, message);
 
                 // Write new username to temp file
                 fprintf(temp, "%d,%s,%s\n", id, newusername, role);
@@ -2968,6 +3033,11 @@ void del_username_auth(char *username, client_data *client) {
             if (strcmp(namecheck, username) == 0) {
                 // DEBUGGING
                 printf("[%s][DEL USERNAME AUTH] Success: Username found\n", client->username);
+
+                // Write to log
+                char message[MAX_BUFFER];
+                sprintf(message, "%s removed user %s\n", client->username, username);
+                write_log(channel, message);
             } else {
                 // Write old username to temp file
                 fprintf(temp, "%d,%s,%s\n", id, namecheck, role);
@@ -3395,6 +3465,11 @@ void ban_user(char *username, client_data *client) {
     // DEBUGGING
     printf("[%s][BAN USER] Success: %s banned\n", client->username, username);
 
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s banned user %s from %s\n", client->username, username, client->channel);
+    write_log(client->channel, message);
+
     // Send response to client
     sprintf(response, "MSG,Success: %s banned", username);
     send(client_fd, response, strlen(response), 0);
@@ -3512,6 +3587,11 @@ void kick_user(char *username, client_data *client) {
 
     // DEBUGGING
     printf("[%s][KICK USER] Success: %s kicked\n", client->username, username);
+
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s kicked user %s from %s\n", client->username, username, client->channel);
+    write_log(client->channel, message);
 
     // Send response to client
     sprintf(response, "MSG,Success: %s kicked", username);
@@ -3650,6 +3730,10 @@ void unban_user(char *username, client_data *client) {
 
     // DEBUGGING
     printf("[%s][UNBAN USER] Success: %s unbanned\n", client->username, username);
+
+    // Write to log
+    char message[MAX_BUFFER];
+    sprintf(message, "%s unbanned user %s from \"%s\"\n", client->username, username, client->channel);
 
     // Send response to client
     sprintf(response, "MSG,Success: %s unbanned", username);
@@ -3914,6 +3998,11 @@ void edit_chat(int edit, char *message, client_data *client){
     // Rename temp file
     rename(path_temp, path_chat);
 
+    // Write to log
+    char log[MAX_BUFFER];
+    sprintf(log, "%s edited chat id %d in \"%s\": %s\n", client->username, edit, client->room, message);
+    write_log(client->channel, log);
+
     // Send response to client
     sprintf(response, "MSG,Success: ID edited");
     send(client_fd, response, strlen(response), 0);
@@ -3924,7 +4013,7 @@ void edit_chat(int edit, char *message, client_data *client){
 // DELETE CHAT ID //
 //================//
 
-void del_chat(int delete, client_data *client) {
+void del_chat(int target, client_data *client) {
     int client_fd = client->socket_fd;
 
     // Prepare response
@@ -3963,21 +4052,21 @@ void del_chat(int delete, client_data *client) {
     }
 
     // DEBUGGING
-    printf("[%s][DEL CHAT] id: %d\n", client->username, delete);
+    printf("[%s][DEL CHAT] id: %d\n", client->username, target);
 
     // Loop until id matches
-    int id; char username[MAX_BUFFER];
+    int id; char username[MAX_BUFFER], message[MAX_BUFFER];
     char buffer[MAX_CHAT];
     int found = 0;
     while (fgets(buffer, MAX_BUFFER, file) != NULL) {
         // Get data from buffer
-        sscanf(buffer, "%*[^,],%d,%[^,],%*[^\n]", &id, username);
+        sscanf(buffer, "%*[^,],%d,%[^,],%[^\n]", &id, username, message);
 
         // DEBUGGING
         printf("[%s][DEL CHAT] id: %d, username: %s\n", client->username, id, username);
 
         // Skip if id matches
-        if (id == delete){
+        if (id == target){
             // Check if user is not admin/root
             if (strcmp(client->role, "USER") == 0)
             // Check if user is not the author
@@ -4029,6 +4118,11 @@ void del_chat(int delete, client_data *client) {
 
     // Rename temp file
     rename(path_temp, path_chat);
+
+    // Write to log
+    char log[MAX_BUFFER];
+    sprintf(log, "%s deleted chat id %d in \"%s\": \"%s\"\n", client->username, target, client->room, message);
+    write_log(client->channel, log);
 
     // Send response to client
     sprintf(response, "MSG,Success: ID deleted");
@@ -4114,4 +4208,33 @@ char* get_timestamp() {
     strftime(timestamp, MAX_BUFFER, "%d/%m/%Y %H:%M:%S", timeinfo);
 
     return timestamp;
+}
+
+//==============//
+// WRITE TO LOG //
+//==============//
+
+void write_log(char* channel, char* message) {
+    // Prepare log path
+    char path_log[MAX_BUFFER];
+    sprintf(path_log, "%s/%s/admin/log.csv", cwd, channel);
+
+    // Open log file
+    FILE *file = fopen(path_log, "a+");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        printf("[LOG] Error: Unable to open file\n");
+        return;
+    }
+
+    // Get timestamp
+    char *timestamp = get_timestamp();
+
+    // Write to log file
+    fprintf(file, "[%s] %s", timestamp, message);
+
+    // Close file
+    fclose(file);
+    return;
 }
