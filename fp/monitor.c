@@ -25,6 +25,7 @@ char room[100]="";
 
 // Pre-declaration
 void connect_server();
+void clear_terminal();
 void parse_command(char *buffer);
 int handle_account(const char *buffer);
 int handle_command(const char *buffer);
@@ -73,8 +74,10 @@ int main(int argc, char *argv[]) {
     while(1){
         // Get chat if client is in a room
         if (strlen(room) > 0) {
+            clear_terminal();
+            printf("=================================\n");
             handle_command("SEE CHAT");
-            printf("============================\n");
+            printf("=================================\n");
         }
 
         // Print user prompt
@@ -91,7 +94,7 @@ int main(int argc, char *argv[]) {
         buffer[strcspn(buffer, "\n")] = 0;
 
         // DEBUGGING
-        printf("Sending: %s\n", buffer);
+        // printf("Sending: %s\n", buffer);
 
         // Parse command
         parse_command(buffer);
@@ -126,6 +129,11 @@ void connect_server() {
 
     // DEBUGGING
     printf("Connected to server\n");
+}
+
+// Clear terminal
+void clear_terminal() {
+    printf("\033[H\033[J");
 }
 
 // Account handler function
@@ -220,11 +228,9 @@ void parse_command(char *buffer) {
 
     // Check if user is in a channel or room
     if (strlen(room) > 0 || strlen(channel) > 0) {
-        // DEBUGGING
-        printf("Exiting\n");
-
-        // Add monitor to buffer
-        strcat(buffer, " MONITOR");
+        while (strlen(room) > 0 || strlen(channel) > 0) 
+            handle_command("EXIT");
+        return; 
     }
 
     // Handle EXIT command
@@ -300,13 +306,34 @@ int handle_command(const char *buffer) {
 
     // Channel/room exiting
     else if (strcmp(type, "EXIT") == 0){
-        // Reset channel and room
-        memset(channel, 0, sizeof(channel));
-        memset(room, 0, sizeof(room));
-        
-        // Print exit message
-        printf("%s\n", message);
-        return 0;
+        // Parse exit type
+        char *exit_type = strtok(NULL, ",");
+
+        // Check if parsing is correct
+        if (exit_type == NULL) {
+            perror("exit type is empty");
+            exit(EXIT_FAILURE);
+        }
+
+        // Check if exiting channel
+        if (strcmp(exit_type, "CHANNEL") == 0) {
+            memset(channel, 0, 100);
+            // also reset room in case user is in a room
+            memset(room, 0, 100);
+
+            // DEBUGGING
+            // printf("%s\n", message);
+            return 0;
+        }
+
+        // Check if exiting room
+        else if (strcmp(exit_type, "ROOM") == 0) {
+            memset(room, 0, 100);
+
+            // DEBUGGING
+            // printf("%s\n", message);
+            return 0;
+        }
     }
 
     // When asked for key

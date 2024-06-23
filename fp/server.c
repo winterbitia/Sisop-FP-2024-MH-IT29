@@ -375,23 +375,8 @@ void handle_input(void *arg){
 
         // Start command handling
         if (strcmp(command, "EXIT") == 0){
-            // Parse data from client
-            char *type = strtok(NULL, " ");
-
             // DEBUGGING
             printf("[%s][EXIT]\n", client->username);
-
-            // Check for monitor type
-            if (type != NULL && strcmp(type, "MONITOR") == 0){
-                // DEBUGGING
-                printf("[%s] Monitor exit\n", client->username);
-
-                // Send response to client
-                memset(response, 0, MAX_BUFFER);
-                sprintf(response, "EXIT,Monitor exit");
-                send(client_fd, response, strlen(response), 0);
-                continue;
-            }
 
             // Call exit user function
             exit_user(client);
