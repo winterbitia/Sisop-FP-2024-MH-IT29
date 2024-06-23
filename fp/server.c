@@ -618,6 +618,43 @@ void handle_input(void *arg){
 
                 // call edit chat function
                 edit_chat(atoi(target), message, client);
+            } else if (strcmp(type, "PROFILE") == 0){
+                // Parse data from client
+                char *target = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (target == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing target or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Target: %s, New: %s\n", client->username, flag, target, new);
+
+                // Branch flag types
+                if (strcmp(flag, "-u") == 0){
+                    // Call edit username function
+                    edit_username(client->username, new, client);
+                } else if (strcmp(flag, "-p") == 0){
+                    // Call edit password function
+                    edit_password(client->username, new, client);
+                } else {
+                    // DEBUGGING
+                    printf("[%s] Error: Flag type not found\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Flag type not found");
+                    send(client_fd, response, strlen(response), 0);
+                }
             } else {
                 // DEBUGGING
                 printf("[%s] Error: Edit type not found\n", client->username);
