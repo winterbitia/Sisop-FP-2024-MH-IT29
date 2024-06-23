@@ -24,6 +24,7 @@
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <crypt.h>
 #include <errno.h>
@@ -78,16 +79,18 @@ void  handle_input(void *arg);
 void register_user(char *username, char *password, client_data *client);
 int  login_user(char *username, char *password, client_data *client);
 
+// Channel Join Handlers
+void  join_channel(char *channel, client_data *client);
+char* get_key(char *channel, client_data *client);
+int   verify_key(char *channel, client_data *client);
+
 // Channel Handlers
 void admin_init_channel(char *path_auth, client_data *client);
 int  check_channel(char *channel, client_data *client);
 void create_channel(char *channel, char *key, client_data *client);
 void list_channel(client_data *client);
-
-// Channel Join Handlers
-void  join_channel(char *channel, client_data *client);
-char* get_key(char *channel, client_data *client);
-int   verify_key(char *channel, client_data *client);
+void edit_channel(char *changed, char *new, client_data *client);
+void delete_channel(char *channel, client_data *client);
 
 // Room Handlers
 void create_room(char *room, client_data *client);
@@ -102,7 +105,7 @@ void exit_user(client_data *client);
 // User Management Handlers
 int  check_user(client_data *client);
 int  check_ban(client_data *client);
-int  check_channel_perms(client_data *client);
+int  check_channel_perms(char *target, client_data *client);
 void edit_username_auth(char *username, char *newusername, client_data *client);
 void edit_username(char *username, char *newusername, client_data *client);
 void edit_password(char *username, char *newpassword, client_data *client);
@@ -120,6 +123,8 @@ void del_chat(int target, client_data *client);
 
 // Misc Handlers
 void make_directory(char *path);
+void rename_directory(char *path, char *newpath);
+void remove_directory(char *path);
 char* get_timestamp();
 
 
@@ -655,6 +660,43 @@ void handle_input(void *arg){
                     sprintf(response, "MSG,Error: Flag type not found");
                     send(client_fd, response, strlen(response), 0);
                 }
+
+            } else if (strcmp(type, "CHANNEL") == 0){
+                // Parse data from client
+                char *changed = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (changed == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing changed/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing changed or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if flag is valid
+                if (strcmp(flag, "TO") != 0){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing flag)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing flag)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Changed: %s, New: %s\n", client->username, flag, changed, new);
+
+                // Call edit channel function
+                edit_channel(changed, new, client);
+                
             } else {
                 // DEBUGGING
                 printf("[%s] Error: Edit type not found\n", client->username);
@@ -707,6 +749,29 @@ void handle_input(void *arg){
 
                 // Call delete chat function
                 del_chat(atoi(target), client);
+
+            } else if (strcmp(type, "CHANNEL") == 0){
+                // Parse data from client
+                char *channel = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (channel == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing channel)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER);
+                    sprintf(response, "MSG,Error: Invalid command (missing channel)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Channel: %s\n", client->username, channel);
+
+                // Call delete channel function
+                delete_channel(channel, client);
+
             } else {
                 // DEBUGGING
                 printf("[%s] Error: Delete type not found\n", client->username);
@@ -1487,6 +1552,244 @@ int verify_key(char *channel, client_data *client) {
     // Fail if key does not match
     return -1;    
 }
+
+//==============//
+// EDIT CHANNEL //
+//==============//
+
+void edit_channel(char *changed, char *new, client_data *client){
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check permissions
+    int perms = check_channel_perms(changed, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] User is privileged\n", client->username);
+    }
+
+    // Open channel file
+    FILE *file = fopen(channels_csv, "r");
+
+    // Open temp channel file
+    char temp[MAX_BUFFER];
+    sprintf(temp, "%s/.temp_channel.csv", cwd);
+    FILE *file_temp = fopen(temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id, channel, and key
+    int id; char channel[MAX_BUFFER], key[MAX_BUFFER];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%s", &id, channel, key) == 3) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] id: %d, channel: %s, key: %s\n", client->username, id, channel, key);
+
+        // Write to temp file
+        if (strcmp(changed, channel) == 0) {
+            found = 1;
+            fprintf(file_temp, "%d,%s,%s\n", id, new, key);
+        } else {
+            fprintf(file_temp, "%d,%s,%s\n", id, channel, key);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Fail if channel is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: Channel not found\n", client->username);
+
+        // Remove temp file
+        remove(temp);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Channel not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old channel file and rename temp file
+    remove(channels_csv);
+    rename(temp, channels_csv);
+
+    // Update folder name
+    char path_channel[MAX_BUFFER];
+    sprintf(path_channel, "%s/%s", cwd, changed);
+    char path_new[MAX_BUFFER];
+    sprintf(path_new, "%s/%s", cwd, new);
+    rename_directory(path_channel, path_new);
+
+    // Check if edited channel is the current channel
+    if (strcmp(client->channel, changed) == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Channel name self-changed\n", client->username);
+
+        // Update client channel
+        strcpy(client->channel, new);
+
+        // Send response to client
+        sprintf(response, "CHANNEL,Channel name changed to %s,%s", new, new);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } 
+    
+    // DEBUGGING
+    printf("[%s][EDIT CHANNEL] Channel name changed\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Channel name changed to %s", new);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
+//================//
+// DELETE CHANNEL //
+//================//
+
+void delete_channel(char *channel, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check permissions
+    int perms = check_channel_perms(channel, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] User is privileged\n", client->username);
+    }
+
+    // Open channel file
+    FILE *file = fopen(channels_csv, "r");
+
+    // Open temp channel file
+    char temp[MAX_BUFFER];
+    sprintf(temp, "%s/.temp_channel.csv", cwd);
+    FILE *file_temp = fopen(temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id, channel, and key
+    int id; char channelcheck[MAX_BUFFER], key[MAX_BUFFER];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%s", &id, channelcheck, key) == 3) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] id: %d, channel: %s, key: %s\n", client->username, id, channelcheck, key);
+
+        // Write to temp file
+        if (strcmp(channel, channelcheck) != 0) {
+            fprintf(file_temp, "%d,%s,%s\n", id, channelcheck, key);
+        } else {
+            found = 1;
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Fail if channel is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: Channel not found\n", client->username);
+
+        // Remove temp file
+        remove(temp);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Channel not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old channel file and rename temp file
+    remove(channels_csv);
+    rename(temp, channels_csv);
+
+    // Remove channel directory
+    char path_channel[MAX_BUFFER];
+    sprintf(path_channel, "%s/%s", cwd, channel);
+    remove_directory(path_channel);
+
+    // Check if deleted channel is the current channel
+    if (strcmp(client->channel, channel) == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Channel current deleted\n", client->username);
+
+        // Update client channel
+        strcpy(client->channel, "");
+
+        // Send response to client
+        sprintf(response, "EXIT,Channel %s deleted,CHANNEL", channel, channel);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][DELETE CHANNEL] Channel deleted\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Channel %s deleted", channel);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+
 
 //===========================================================================================//
 //----------------------------------------- ROOMS -------------------------------------------//
@@ -2497,17 +2800,8 @@ int check_ban(client_data *client) {
 // CHECK CHANNEL PERMS //
 //=====================//
 
-int check_channel_perms(client_data *client) {
+int check_channel_perms(char *target, client_data *client) {
     int client_fd = client->socket_fd;
-
-    // Check if user is in a channel
-    if (strlen(client->channel) == 0) {
-        // DEBUGGING
-        printf("[%s][CHECK PERMS] Error: User is not in a channel\n", client->username);
-
-        // Return -2 if user is not in a channel
-        return -2;
-    }
 
     // Check channel permissions
     FILE *file_channel = fopen(channels_csv, "r");
@@ -2522,13 +2816,13 @@ int check_channel_perms(client_data *client) {
     }
 
     // Loop through channel name to find permissions
-    int permission = 0; char channel[MAX_BUFFER];
+    char channel[MAX_BUFFER];
     while (fscanf(file_channel, "%*d,%[^,],%*s", channel) == 1) {
         // DEBUGGING
-        printf("[%s][CHECK PERMS] Compare: %s-%s\n", client->channel, channel);
+        printf("[%s][CHECK PERMS] Compare: %s-%s\n", client->username, target, channel);
 
         // Check channel name
-        if (strcmp(channel, client->channel) == 0) {
+        if (strcmp(channel, target) == 0) {
             // Prepare auth path
             char path_auth[MAX_BUFFER];
             sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
@@ -2592,9 +2886,8 @@ void ban_user(char *username, client_data *client) {
     // Prepare response
     char response[MAX_BUFFER];
 
-    // Check permissions
-    int perms = check_channel_perms(client);
-    if (perms == -2) {
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
         // DEBUGGING
         printf("[%s][BAN USER] Error: User is not in a channel\n", client->username);
 
@@ -2602,7 +2895,11 @@ void ban_user(char *username, client_data *client) {
         sprintf(response, "MSG,Error: User is not in a channel");
         send(client_fd, response, strlen(response), 0);
         return;
-    } else if (perms == -1) {
+    }
+
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
         // DEBUGGING
         printf("[%s][BAN USER] Error: Unable to check permissions\n", client->username);
 
@@ -2738,9 +3035,8 @@ void kick_user(char *username, client_data *client) {
     // Prepare response
     char response[MAX_BUFFER];
 
-    // Check permissions
-    int perms = check_channel_perms(client);
-    if (perms == -2) {
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
         // DEBUGGING
         printf("[%s][KICK USER] Error: User is not in a channel\n", client->username);
 
@@ -2748,7 +3044,11 @@ void kick_user(char *username, client_data *client) {
         sprintf(response, "MSG,Error: User is not in a channel");
         send(client_fd, response, strlen(response), 0);
         return;
-    } else if (perms == -1) {
+    }
+
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
         // DEBUGGING
         printf("[%s][KICK USER] Error: Unable to check permissions\n", client->username);
 
@@ -2853,9 +3153,8 @@ void unban_user(char *username, client_data *client) {
     // Prepare response
     char response[MAX_BUFFER];
 
-    // Check permissions
-    int perms = check_channel_perms(client);
-    if (perms == -2) {
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
         // DEBUGGING
         printf("[%s][UNBAN USER] Error: User is not in a channel\n", client->username);
 
@@ -2863,7 +3162,11 @@ void unban_user(char *username, client_data *client) {
         sprintf(response, "MSG,Error: User is not in a channel");
         send(client_fd, response, strlen(response), 0);
         return;
-    } else if (perms == -1) {
+    }
+
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
         // DEBUGGING
         printf("[%s][UNBAN USER] Error: Unable to check permissions\n", client->username);
 
@@ -3370,6 +3673,52 @@ void make_directory(char *path) {
         printf("[MKDIR] Error: Unable to create directory\n");
         return;
     }
+}
+
+//==================//
+// RENAME DIRECTORY //
+//==================//
+
+void rename_directory(char *path, char *newpath) {
+    // Create fork
+    int pid = fork();
+    // Return if fork fails
+    if (pid < 0) {
+        printf("[RENAME] Error: Unable to fork\n");
+        return;
+    }
+
+    // Execute mv
+    if (pid == 0) {
+        execlp("mv", "mv", path, newpath, NULL);
+    }
+
+    // Wait for child process
+    wait(NULL);
+    return;
+}
+
+//==================//
+// REMOVE DIRECTORY //
+//==================//
+
+void remove_directory(char *path) {
+    // Create fork
+    int pid = fork();
+    // Return if fork fails
+    if (pid < 0) {
+        printf("[RMDIR] Error: Unable to fork\n");
+        return;
+    }
+
+    // Execute rm -rf
+    if (pid == 0) {
+        execlp("rm", "rm", "-rf", path, NULL);
+    }
+
+    // Wait for child process
+    wait(NULL);
+    return;
 }
 
 //===============//
