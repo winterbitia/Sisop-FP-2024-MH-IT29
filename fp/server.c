@@ -2411,7 +2411,7 @@ int check_ban(client_data *client) {
 
     // Loop through id and username
     int id; char role[8];
-    while (fscanf(file, "%d,%[^,],%s", &id, role) == 2) {
+    while (fscanf(file, "%d,%*[^,],%s", &id, role) == 2) {
         // DEBUGGING
         printf("[%s][CHECK BAN] id: %d, role: %s\n", client->username, id, role);
 
