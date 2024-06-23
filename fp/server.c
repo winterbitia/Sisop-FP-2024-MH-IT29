@@ -2122,6 +2122,17 @@ void join_room(char *room, client_data *client) {
     // Prepare response
     char response[MAX_BUFFER];
 
+    // Check if user is trying to join admin
+    if (strcmp(room, "admin") == 0) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Error: Invalid room name\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Invalid room name");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
     // Check if user is in a channel
     if (strlen(client->channel) == 0) {
         // DEBUGGING
