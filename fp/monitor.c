@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
             printf("==========================================\n");
             handle_command("SEE CHAT");
             printf("==========================================\n"
-                   "[!] Monitor refreshes every 3 seconds\n"
+                   "[!] Monitor refreshes every 5 seconds\n"
                    "[!] Type EXIT to leave the room\n"
                    "==========================================\n");  
 
@@ -87,8 +87,8 @@ int main(int argc, char *argv[]) {
             pthread_t tid;
             pthread_create(&tid, NULL, input_handler, NULL);
 
-            // Refresh every 3 seconds
-            sleep(3); pthread_cancel(tid);
+            // Refresh every 5 seconds
+            sleep(5); pthread_cancel(tid);
         }
 
         // Handle user input
@@ -206,8 +206,20 @@ void parse_command(char *buffer) {
         return;
     }
 
+    // Check if user is in a room for EXIT control
+    int exit_control = 0;
+    if (strlen(room) > 0) {
+        if (strstr(buffer, "EXIT") != NULL) {
+            exit_control = 1;
+        }
+    } else {
+        if (strcmp(command1, "EXIT") == 0) {
+            exit_control = 1;
+        }
+    }
+
     // Check command1 not EXIT to skip filtering
-    if (strcmp(command1, "EXIT") != 0) {
+    if (exit_control == 0) {
         // Parse command again
         char *cname = strtok(NULL, " ");
         char *command2 = strtok(NULL, " ");
