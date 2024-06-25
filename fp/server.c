@@ -44,8 +44,8 @@
 
 // Dir variables
 char cwd[MAX_BUFFER];
-char users_csv[MAX_BUFFER];
-char channels_csv[MAX_BUFFER];
+char users_csv[MAX_BUFFER * 2];
+char channels_csv[MAX_BUFFER * 2];
 
 // Socket variables
 int server_fd, gclient_fd;
@@ -325,7 +325,7 @@ void handle_input(void *arg){
             printf("[%s] User does not exist\n", client->username);
 
             // Send response to client
-            memset(response, 0, MAX_BUFFER);
+            memset(response, 0, MAX_BUFFER * 2);
             sprintf(response, "QUIT,Error: User does not exist");
             send(client_fd, response, strlen(response), 0);
 
@@ -347,7 +347,7 @@ void handle_input(void *arg){
             memset(client->room, 0, 100);
 
             // Send response to client
-            memset(response, 0, MAX_BUFFER);
+            memset(response, 0, MAX_BUFFER * 2);
             sprintf(response, "EXIT,Error: User is banned,CHANNEL");
             send(client_fd, response, strlen(response), 0);
 
@@ -362,7 +362,7 @@ void handle_input(void *arg){
             memset(client->room, 0, 100);
 
             // Send response to client
-            memset(response, 0, MAX_BUFFER);
+            memset(response, 0, MAX_BUFFER * 2);
             sprintf(response, "EXIT,Error: Unable to check ban,CHANNEL");
             send(client_fd, response, strlen(response), 0);
 
@@ -391,7 +391,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid see (missing type)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing see type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -412,7 +412,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: See type not found\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: See type not found");
                 send(client_fd, response, strlen(response), 0);
             }
@@ -427,7 +427,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid create (missing type)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing create type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -449,7 +449,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing name/key)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing channel name/key)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -458,7 +458,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid flag statement\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing -k flag)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -479,7 +479,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing room name)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing room name)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -495,7 +495,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Create type not found\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Create type not found");
                 send(client_fd, response, strlen(response), 0);
             }
@@ -510,7 +510,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid listing (missing type)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing list type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -534,7 +534,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: List type not found\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: List type not found");
                 send(client_fd, response, strlen(response), 0);
             }
@@ -549,7 +549,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid edit (missing type)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing edit type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -570,7 +570,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing target/new)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing target or new)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -591,7 +591,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Flag type not found\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Flag type not found");
                     send(client_fd, response, strlen(response), 0);
                 }
@@ -606,7 +606,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing target/message)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing target or message)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -618,7 +618,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid message (missing quotes)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing quotes)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -641,7 +641,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing target/new)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing target or new)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -662,7 +662,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Flag type not found\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Flag type not found");
                     send(client_fd, response, strlen(response), 0);
                 }
@@ -679,7 +679,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing changed/new)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing changed or new)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -691,7 +691,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing flag)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing flag)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -715,7 +715,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing changed/new)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing changed or new)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -727,7 +727,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing flag)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing flag)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -744,7 +744,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Edit type not found\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Edit type not found");
                 send(client_fd, response, strlen(response), 0);
             
@@ -760,7 +760,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid delete (missing type)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing delete type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -780,7 +780,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing target)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing target)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -802,7 +802,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing channel)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing channel)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -824,7 +824,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid command (missing room)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing room)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -851,7 +851,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Delete type not found\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Delete type not found");
                 send(client_fd, response, strlen(response), 0);
             }
@@ -866,7 +866,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid target\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing target)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -887,7 +887,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: User is already in a room\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: User is already in a channel");
                 send(client_fd, response, strlen(response), 0);
             }
@@ -902,7 +902,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid message (missing message)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing message)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -914,7 +914,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid message (missing quotes)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing quotes)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -936,7 +936,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid remove (missing type)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing remove type)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -956,7 +956,7 @@ void handle_input(void *arg){
                     printf("[%s] Error: Invalid remove (missing target)\n", client->username);
 
                     // Send response to client
-                    memset(response, 0, MAX_BUFFER);
+                    memset(response, 0, MAX_BUFFER * 2);
                     sprintf(response, "MSG,Error: Invalid command (missing remove target)");
                     send(client_fd, response, strlen(response), 0);
                     continue;
@@ -985,7 +985,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid ban (missing target)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing ban target)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -1007,7 +1007,7 @@ void handle_input(void *arg){
                 printf("[%s] Error: Invalid unban (missing target)\n", client->username);
 
                 // Send response to client
-                memset(response, 0, MAX_BUFFER);
+                memset(response, 0, MAX_BUFFER * 2);
                 sprintf(response, "MSG,Error: Invalid command (missing unban target)");
                 send(client_fd, response, strlen(response), 0);
                 continue;
@@ -1024,7 +1024,7 @@ void handle_input(void *arg){
             printf("[%s] Error: Command not found\n", client->username);
 
             // Send response to client
-            memset(response, 0, MAX_BUFFER);
+            memset(response, 0, MAX_BUFFER * 2);
             sprintf(response, "MSG,Error: Command not found");
             send(client_fd, response, strlen(response), 0);
         }
@@ -1043,7 +1043,7 @@ void register_user(char *username, char *password, client_data *client) {
     int client_fd = client->socket_fd;
 
     // Prepare response
-    char response[MAX_BUFFER];
+    char response[MAX_BUFFER * 2];
 
     // Check if username has comma or is called USER
     if (strchr(username, ',') != NULL
@@ -1225,7 +1225,7 @@ int check_channel(char *channel, client_data *client){
     int client_fd = client->socket_fd;
 
     // Prepare channel path
-    char path_channel[MAX_BUFFER];
+    char path_channel[MAX_BUFFER * 2];
     sprintf(path_channel, "%s/%s", cwd, channel);
 
     // Prepare response
@@ -1278,7 +1278,7 @@ void create_channel(char *channel, char *key, client_data *client) {
     int id = check_channel(channel, client);
 
     // DEBUGGING
-    printf("[%s][CREATE CHANNEL] id: %d\n", client->username);
+    printf("[%s][CREATE CHANNEL] id: %d\n", client->username, client->id);
 
     // Fail if channel already exists
     if (id == -2) {
@@ -1303,7 +1303,7 @@ void create_channel(char *channel, char *key, client_data *client) {
     fclose(file);
 
     // Create directory and all related preparations
-    char path[MAX_BUFFER], path_admin[MAX_BUFFER], path_auth[MAX_BUFFER];
+    char path[MAX_BUFFER * 2], path_admin[MAX_BUFFER * 2], path_auth[MAX_BUFFER * 2];
     sprintf(path, "%s/%s", cwd, channel);
     sprintf(path_admin, "%s/%s/admin", cwd, channel);
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
@@ -1315,7 +1315,7 @@ void create_channel(char *channel, char *key, client_data *client) {
     printf("[%s][CREATE CHANNEL] Success: Channel %s created\n", client->username, channel);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s created channel \"%s\"\n", client->username, channel);
     write_log(channel, message);
 
@@ -1335,7 +1335,7 @@ void list_channel(client_data *client) {
     FILE *file = fopen(channels_csv, "r");
 
     // Prepare response
-    char response[MAX_BUFFER];
+    char response[MAX_BUFFER * 2];
     sprintf(response, "MSG,");
     int channels_found = 0;
 
@@ -1392,7 +1392,7 @@ void join_channel(char *channel, client_data *client) {
     int client_fd = client->socket_fd;
 
     // Prepare response
-    char response[MAX_BUFFER];
+    char response[MAX_BUFFER * 2];
     sprintf(response, "MSG,");
 
     // Check if channel exists
@@ -1407,7 +1407,7 @@ void join_channel(char *channel, client_data *client) {
     }
 
     // Open auth of current channel
-    char path_auth[MAX_BUFFER];
+    char path_auth[MAX_BUFFER * 2];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
     FILE *file = fopen(path_auth, "a+");
 
@@ -1454,7 +1454,7 @@ void join_channel(char *channel, client_data *client) {
             strcpy(client->channel, channel);
 
             // Write to log
-            char message[MAX_BUFFER];
+            char message[MAX_BUFFER * 2];
             sprintf(message, "%s joined channel \"%s\"\n", client->username, channel);
             write_log(channel, message);
 
@@ -1483,7 +1483,7 @@ void join_channel(char *channel, client_data *client) {
         strcpy(client->channel, channel);
 
         // Write to log
-        char message[MAX_BUFFER];
+        char message[MAX_BUFFER * 2];
         sprintf(message, "%s joined channel \"%s\" as ROOT\n", client->username, channel);
 
         // Send response to client
@@ -1507,7 +1507,7 @@ void join_channel(char *channel, client_data *client) {
         strcpy(client->channel, channel);
 
         // Write to log
-        char message[MAX_BUFFER];
+        char message[MAX_BUFFER * 2];
         sprintf(message, "%s verified for channel \"%s\"\n", client->username, channel);
         write_log(channel, message);
 
@@ -1593,7 +1593,7 @@ int verify_key(char *channel, client_data *client) {
     }
 
     // Request key from client
-    char request[MAX_BUFFER];
+    char request[MAX_BUFFER * 2];
     sprintf(request, "KEY,Request to join %s", channel);
     send(client_fd, request, strlen(request), 0);
 
@@ -1694,7 +1694,7 @@ void edit_channel(char *changed, char *new, client_data *client){
     FILE *file = fopen(channels_csv, "r");
 
     // Open temp channel file
-    char temp[MAX_BUFFER];
+    char temp[MAX_BUFFER * 2];
     sprintf(temp, "%s/.temp_channel.csv", cwd);
     FILE *file_temp = fopen(temp, "w");
 
@@ -1748,9 +1748,9 @@ void edit_channel(char *changed, char *new, client_data *client){
     rename(temp, channels_csv);
 
     // Update folder name
-    char path_channel[MAX_BUFFER];
+    char path_channel[MAX_BUFFER * 2];
     sprintf(path_channel, "%s/%s", cwd, changed);
-    char path_new[MAX_BUFFER];
+    char path_new[MAX_BUFFER * 2];
     sprintf(path_new, "%s/%s", cwd, new);
     rename_directory(path_channel, path_new);
 
@@ -1763,7 +1763,7 @@ void edit_channel(char *changed, char *new, client_data *client){
         strcpy(client->channel, new);
 
         // Write to log
-        char message[MAX_BUFFER];
+        char message[MAX_BUFFER * 2];
         sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
         write_log(new, message);
 
@@ -1819,7 +1819,7 @@ void delete_channel(char *channel, client_data *client) {
     FILE *file = fopen(channels_csv, "r");
 
     // Open temp channel file
-    char temp[MAX_BUFFER];
+    char temp[MAX_BUFFER * 2];
     sprintf(temp, "%s/.temp_channel.csv", cwd);
     FILE *file_temp = fopen(temp, "w");
 
@@ -1872,7 +1872,7 @@ void delete_channel(char *channel, client_data *client) {
     rename(temp, channels_csv);
 
     // Remove channel directory
-    char path_channel[MAX_BUFFER];
+    char path_channel[MAX_BUFFER * 2];
     sprintf(path_channel, "%s/%s", cwd, channel);
     remove_directory(path_channel);
 
@@ -1888,7 +1888,8 @@ void delete_channel(char *channel, client_data *client) {
         strcpy(client->room, "");
 
         // Send response to client
-        sprintf(response, "EXIT,Channel %s deleted,CHANNEL", channel, channel);
+        sprintf(response, "EXIT,Channel %s deleted,CHANNEL", channel);
+
         send(client_fd, response, strlen(response), 0);
         return;
     }
@@ -1940,7 +1941,7 @@ void create_room(char *room, client_data *client) {
     }
 
     // Open auth of current channel
-    char path_auth[MAX_BUFFER];
+    char path_auth[MAX_BUFFER * 2];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
     FILE *file = fopen(path_auth, "r");
 
@@ -1993,12 +1994,12 @@ void create_room(char *room, client_data *client) {
     }
 
     // Create room directory 
-    char path_room[MAX_BUFFER];
+    char path_room[MAX_BUFFER * 2];
     sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
     make_directory(path_room);
 
     // Initialize chat.csv
-    char path_chat[MAX_BUFFER];
+    char path_chat[MAX_BUFFER * 2];
     sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, room);
     FILE *file_chat = fopen(path_chat, "w");
     if (file_chat == NULL) {
@@ -2015,7 +2016,7 @@ void create_room(char *room, client_data *client) {
     fclose(file_chat);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s created room \"%s\"\n", client->username, room);
     write_log(client->channel, message);
 
@@ -2038,18 +2039,18 @@ void list_room(client_data *client) {
         printf("[%s][LIST ROOM] Error: User is not in a channel\n", client->username);
 
         // Prepare response
-        char response[MAX_BUFFER];
+        char response[MAX_BUFFER * 2];
         sprintf(response, "MSG,Error: User is not in a channel");
         send(client_fd, response, strlen(response), 0);
         return;
     }
 
     // Prepare channel path
-    char path_channel[MAX_BUFFER];
+    char path_channel[MAX_BUFFER * 2];
     sprintf(path_channel, "%s/%s", cwd, client->channel);
 
     // Prepare response
-    char response[MAX_BUFFER];
+    char response[MAX_BUFFER * 2];
     sprintf(response, "MSG,");
     int rooms_found = 0;
 
@@ -2079,7 +2080,7 @@ void list_room(client_data *client) {
         if (strcmp(entry->d_name, "admin") == 0) continue;
 
         // Prepare entry path
-        char entry_path[MAX_BUFFER];
+        char entry_path[MAX_BUFFER * 3];
         sprintf(entry_path, "%s/%s", path_channel, entry->d_name);
 
         // Check if entry is a directory to be listed
@@ -2145,7 +2146,7 @@ void join_room(char *room, client_data *client) {
     }
 
     // Check if room exists
-    char path_room[MAX_BUFFER];
+    char path_room[MAX_BUFFER * 2];
     sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
     struct stat statbuf;
     if (stat(path_room, &statbuf) == -1) {
@@ -2167,7 +2168,7 @@ void join_room(char *room, client_data *client) {
         strcpy(client->room, room);
 
         // Write to log
-        char message[MAX_BUFFER];
+        char message[MAX_BUFFER * 2];
         sprintf(message, "%s joined room \"%s\"\n", client->username, room);
         write_log(client->channel, message);
 
@@ -2230,7 +2231,7 @@ void edit_room(char *changed, char *new, client_data *client){
     }
 
     // Prepare room path
-    char path_room[MAX_BUFFER];
+    char path_room[MAX_BUFFER * 2];
     sprintf(path_room, "%s/%s/%s", cwd, client->channel, changed);
 
     // Check if room exists
@@ -2246,7 +2247,7 @@ void edit_room(char *changed, char *new, client_data *client){
     }
 
     // Rename room directory
-    char path_new[MAX_BUFFER];
+    char path_new[MAX_BUFFER * 2];
     sprintf(path_new, "%s/%s/%s", cwd, client->channel, new);
     rename_directory(path_room, path_new);
 
@@ -2259,7 +2260,7 @@ void edit_room(char *changed, char *new, client_data *client){
         strcpy(client->room, new);
 
         // Write to log
-        char message[MAX_BUFFER];
+        char message[MAX_BUFFER * 2];
         sprintf(message, "%s changed room name to \"%s\"\n", client->username, new);
         write_log(client->channel, message);
 
@@ -2273,7 +2274,7 @@ void edit_room(char *changed, char *new, client_data *client){
     printf("[%s][EDIT ROOM] Room name changed\n", client->username);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s changed room name \"%s\" to \"%s\"\n", client->username, changed, new);
     write_log(client->channel, message);
 
@@ -2328,7 +2329,7 @@ void delete_room(char *room, client_data *client) {
     }
 
     // Prepare room path
-    char path_room[MAX_BUFFER];
+    char path_room[MAX_BUFFER * 2];
     sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
 
     // Check if room exists
@@ -2349,18 +2350,20 @@ void delete_room(char *room, client_data *client) {
     // Check if deleted room is the current room
     if (strcmp(client->room, room) == 0) {
         // DEBUGGING
-        printf("[%s][DELETE ROOM] Room current deleted %s\n", client->username);
+        printf("[%s][DELETE ROOM] Room current deleted %s\n", client->username, room);
+
 
         // Update client room
         strcpy(client->room, "");
 
         // Write to log
-        char message[MAX_BUFFER];
+        char message[MAX_BUFFER * 2];
         sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
         write_log(client->channel, message);
 
         // Send response to client
-        sprintf(response, "EXIT,Room %s deleted,ROOM", room, room);
+        sprintf(response, "EXIT,Room %s deleted,ROOM %s", room, room);
+        
         send(client_fd, response, strlen(response), 0);
         return;
     }
@@ -2369,7 +2372,7 @@ void delete_room(char *room, client_data *client) {
     printf("[%s][DELETE ROOM] Room deleted\n", client->username);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
     write_log(client->channel, message);
 
@@ -2420,7 +2423,7 @@ void delete_all_rooms(client_data *client) {
     }
 
     // Prepare channel path
-    char path_channel[MAX_BUFFER];
+    char path_channel[MAX_BUFFER * 2];
     sprintf(path_channel, "%s/%s", cwd, client->channel);
 
 
@@ -2452,7 +2455,7 @@ void delete_all_rooms(client_data *client) {
         if (strcmp(entry->d_name, "admin") == 0) continue;
 
         // Prepare entry path
-        char entry_path[MAX_BUFFER];
+        char entry_path[MAX_BUFFER * 3];
         sprintf(entry_path, "%s/%s", path_channel, entry->d_name);
 
         // Check if entry is a directory to be deleted
@@ -2474,7 +2477,7 @@ void delete_all_rooms(client_data *client) {
     printf("[%s][DELETE ALL ROOMS] Rooms found: %d\n", client->username, rooms_found);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s deleted all rooms of channel \"%s\"\n", client->username, client->channel);
     write_log(client->channel, message);
 
@@ -2569,7 +2572,7 @@ void see_user(client_data *client) {
     printf("[%s] USER data fetched\n", client->username);
 
     // Prepare response
-    char response[MAX_BUFFER];
+    char response[MAX_BUFFER * 2];
 
     // Send response to client
     sprintf(response, "MSG,"
@@ -2587,7 +2590,7 @@ void list_user(client_data *client) {
     int client_fd = client->socket_fd;
 
     // Prepare response
-    char response[MAX_BUFFER];
+    char response[MAX_BUFFER * 2];
     sprintf(response, "MSG,");
 
     // Check if user is in a channel
@@ -2602,7 +2605,7 @@ void list_user(client_data *client) {
     }
 
     // Prepare channel and auth path
-    char path_channel[MAX_BUFFER], path_auth[MAX_BUFFER];
+    char path_channel[MAX_BUFFER * 3], path_auth[4096];
     sprintf(path_channel, "%s/%s", cwd, client->channel);
     sprintf(path_auth, "%s/admin/auth.csv", path_channel);
     FILE *file = fopen(path_auth, "r");
@@ -2707,7 +2710,7 @@ void edit_username_auth(char *username, char *newusername, client_data *client){
         printf("[%s][EDIT USERNAME AUTH] Error: Unable to open file\n", client->username);
 
         // Send response to client
-        char response[MAX_BUFFER];
+        char response[MAX_BUFFER * 2];
         sprintf(response, "MSG,Error: Unable to open file");
         send(client_fd, response, strlen(response), 0);
         return;
@@ -2717,7 +2720,7 @@ void edit_username_auth(char *username, char *newusername, client_data *client){
     char channel[MAX_BUFFER];
     while (fscanf(file_channel, "%*d,%[^,],%*s", channel) == 1) {
         // Prepare auth path
-        char path_auth[MAX_BUFFER];
+        char path_auth[MAX_BUFFER * 3];
         sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
 
         // Open auth file
@@ -2729,14 +2732,14 @@ void edit_username_auth(char *username, char *newusername, client_data *client){
             printf("[%s][EDIT USERNAME AUTH] Error: Unable to open file\n", client->username);
 
             // Send response to client
-            char response[MAX_BUFFER];
+            char response[MAX_BUFFER * 2];
             sprintf(response, "MSG,Error: Unable to open file");
             send(client_fd, response, strlen(response), 0);
             return;
         }
 
         // Open temp file
-        char temp_csv[MAX_BUFFER];
+        char temp_csv[MAX_BUFFER * 2];
         sprintf(temp_csv, "%s/.temp_auth.csv", cwd);
         FILE *temp = fopen(temp_csv, "w");
 
@@ -2752,7 +2755,7 @@ void edit_username_auth(char *username, char *newusername, client_data *client){
                 printf("[%s][EDIT USERNAME AUTH] Success: Username found\n", client->username);
 
                 // Write to log
-                char message[MAX_BUFFER];
+                char message[MAX_BUFFER * 2];
                 sprintf(message, "%s changed username %s to %s\n", client->username, username, newusername);
                 write_log(channel, message);
 
@@ -2825,7 +2828,7 @@ void edit_username(char *username, char *newusername, client_data *client) {
     FILE *file = fopen(users_csv, "r");
 
     // Open temp file
-    char temp_csv[MAX_BUFFER];
+    char temp_csv[MAX_BUFFER * 2];
     sprintf(temp_csv, "%s/.temp_users.csv", cwd);
     FILE *temp = fopen(temp_csv, "w");
 
@@ -2921,7 +2924,7 @@ void edit_password(char *username, char *newpassword, client_data *client) {
     FILE *file = fopen(users_csv, "r+");
 
     // Open temp file
-    char temp_csv[MAX_BUFFER];
+    char temp_csv[MAX_BUFFER * 2];
     sprintf(temp_csv, "%s/.temp_users.csv", cwd);
     FILE *temp = fopen(temp_csv, "w");
 
@@ -3014,7 +3017,7 @@ void del_username_auth(char *username, client_data *client) {
         printf("[%s][DEL USERNAME AUTH] Error: Unable to open file\n", client->username);
 
         // Send response to client
-        char response[MAX_BUFFER];
+        char response[MAX_BUFFER * 2];
         sprintf(response, "MSG,Error: Unable to open file");
         send(client_fd, response, strlen(response), 0);
         return;
@@ -3024,7 +3027,7 @@ void del_username_auth(char *username, client_data *client) {
     char channel[MAX_BUFFER];
     while (fscanf(file_channel, "%*d,%[^,],%*s", channel) == 1) {
         // Prepare auth path
-        char path_auth[MAX_BUFFER];
+        char path_auth[MAX_BUFFER * 3];
         sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
 
         // Open auth file
@@ -3036,14 +3039,14 @@ void del_username_auth(char *username, client_data *client) {
             printf("[%s][DEL USERNAME AUTH] Error: Unable to open file\n", client->username);
 
             // Send response to client
-            char response[MAX_BUFFER];
+            char response[MAX_BUFFER * 2];
             sprintf(response, "MSG,Error: Unable to open file");
             send(client_fd, response, strlen(response), 0);
             return;
         }
 
         // Open temp file
-        char temp_csv[MAX_BUFFER];
+        char temp_csv[MAX_BUFFER * 2];
         sprintf(temp_csv, "%s/.temp_auth.csv", cwd);
         FILE *temp = fopen(temp_csv, "w");
 
@@ -3059,7 +3062,7 @@ void del_username_auth(char *username, client_data *client) {
                 printf("[%s][DEL USERNAME AUTH] Success: Username found\n", client->username);
 
                 // Write to log
-                char message[MAX_BUFFER];
+                char message[MAX_BUFFER * 2];
                 sprintf(message, "%s removed user %s\n", client->username, username);
                 write_log(channel, message);
             } else {
@@ -3126,7 +3129,7 @@ void remove_user(char *username, client_data *client) {
     FILE *file = fopen(users_csv, "r");
 
     // Open temp file
-    char temp_csv[MAX_BUFFER];
+    char temp_csv[MAX_BUFFER * 2];
     sprintf(temp_csv, "%s/.temp_users.csv", cwd);
     FILE *temp = fopen(temp_csv, "w");
 
@@ -3224,7 +3227,7 @@ int check_ban(client_data *client) {
     }
 
     // Open auth file
-    char path_auth[MAX_BUFFER];
+    char path_auth[MAX_BUFFER * 2];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
     FILE *file = fopen(path_auth, "r");
 
@@ -3297,7 +3300,7 @@ int check_channel_perms(char *target, client_data *client) {
         // Check channel name
         if (strcmp(channel, target) == 0) {
             // Prepare auth path
-            char path_auth[MAX_BUFFER];
+            char path_auth[MAX_BUFFER * 3];
             sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
 
             // Open auth file
@@ -3405,12 +3408,12 @@ void ban_user(char *username, client_data *client) {
     }
 
     // Open auth of channel
-    char path_auth[MAX_BUFFER];
+    char path_auth[MAX_BUFFER * 2];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
     FILE *file_auth = fopen(path_auth, "r");
 
     // Open temp file
-    char temp_csv[MAX_BUFFER];
+    char temp_csv[MAX_BUFFER * 2];
     sprintf(temp_csv, "%s/%s/admin/.temp_auth.csv", cwd, client->channel);
     FILE *temp = fopen(temp_csv, "w");
 
@@ -3490,7 +3493,7 @@ void ban_user(char *username, client_data *client) {
     printf("[%s][BAN USER] Success: %s banned\n", client->username, username);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s banned user %s from %s\n", client->username, username, client->channel);
     write_log(client->channel, message);
 
@@ -3548,12 +3551,12 @@ void kick_user(char *username, client_data *client) {
     }
 
     // Open auth of channel
-    char path_auth[MAX_BUFFER];
+    char path_auth[MAX_BUFFER * 2];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
     FILE *file_auth = fopen(path_auth, "r");
 
     // Open temp file
-    char temp_csv[MAX_BUFFER];
+    char temp_csv[MAX_BUFFER * 2];
     sprintf(temp_csv, "%s/%s/admin/.temp_auth.csv", cwd, client->channel);
     FILE *temp = fopen(temp_csv, "w");
 
@@ -3613,7 +3616,7 @@ void kick_user(char *username, client_data *client) {
     printf("[%s][KICK USER] Success: %s kicked\n", client->username, username);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s kicked user %s from %s\n", client->username, username, client->channel);
     write_log(client->channel, message);
 
@@ -3671,12 +3674,12 @@ void unban_user(char *username, client_data *client) {
     }
 
     // Open auth of channel
-    char path_auth[MAX_BUFFER];
+    char path_auth[MAX_BUFFER * 2];
     sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
     FILE *file_auth = fopen(path_auth, "r");
 
     // Open temp file
-    char temp_csv[MAX_BUFFER];
+    char temp_csv[MAX_BUFFER * 2];
     sprintf(temp_csv, "%s/%s/admin/.temp_auth.csv", cwd, client->channel);
     FILE *temp = fopen(temp_csv, "w");
 
@@ -3756,7 +3759,7 @@ void unban_user(char *username, client_data *client) {
     printf("[%s][UNBAN USER] Success: %s unbanned\n", client->username, username);
 
     // Write to log
-    char message[MAX_BUFFER];
+    char message[MAX_BUFFER * 2];
     sprintf(message, "%s unbanned user %s from \"%s\"\n", client->username, username, client->channel);
 
     // Send response to client
@@ -3791,7 +3794,7 @@ void send_chat(char *message, client_data *client) {
     }
 
     // Prepare chat path
-    char path_chat[MAX_BUFFER];
+    char path_chat[MAX_BUFFER * 2];
     sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
 
     // Open chat file
@@ -3855,7 +3858,7 @@ void see_chat(client_data *client) {
     }
 
     // Prepare chat path
-    char path_chat[MAX_BUFFER];
+    char path_chat[MAX_BUFFER * 2];
     sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
 
     // Open chat file
@@ -3933,12 +3936,12 @@ void edit_chat(int edit, char *message, client_data *client){
     }
 
     // Prepare chat path
-    char path_chat[MAX_BUFFER];
+    char path_chat[MAX_BUFFER * 2];
     sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
     FILE *file = fopen(path_chat, "r");
 
     // Prepare temp path
-    char path_temp[MAX_BUFFER];
+    char path_temp[MAX_BUFFER * 2];
     sprintf(path_temp, "%s/%s/%s/.chat_temp.csv", cwd, client->channel, client->room);
     FILE *file_temp = fopen(path_temp, "w");
 
@@ -3954,7 +3957,7 @@ void edit_chat(int edit, char *message, client_data *client){
     }
 
     // DEBUGGING
-    printf("[%s][EDIT CHAT] id: %d, message: %s\n", client->username, edit);
+    printf("[%s][EDIT CHAT] id: %d, message: %s\n", client->username, edit, message);
 
     // Loop until id matches
     int id; char timestamp[20], username[100], message_old[MAX_BUFFER];
@@ -4023,7 +4026,7 @@ void edit_chat(int edit, char *message, client_data *client){
     rename(path_temp, path_chat);
 
     // Write to log
-    char log[MAX_BUFFER];
+    char log[MAX_BUFFER * 2];
     sprintf(log, "%s edited chat id %d in \"%s\": %s\n", client->username, edit, client->room, message);
     write_log(client->channel, log);
 
@@ -4055,12 +4058,12 @@ void del_chat(int target, client_data *client) {
     }
 
     // Prepare chat path
-    char path_chat[MAX_BUFFER];
+    char path_chat[MAX_BUFFER * 2];
     sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
     FILE *file = fopen(path_chat, "r");
 
     // Prepare temp path
-    char path_temp[MAX_BUFFER];
+    char path_temp[MAX_BUFFER * 2];
     sprintf(path_temp, "%s/%s/%s/.chat_temp.csv", cwd, client->channel, client->room);
     FILE *file_temp = fopen(path_temp, "w");
 
@@ -4144,7 +4147,7 @@ void del_chat(int target, client_data *client) {
     rename(path_temp, path_chat);
 
     // Write to log
-    char log[MAX_BUFFER];
+    char log[MAX_BUFFER * 3];
     sprintf(log, "%s deleted chat id %d in \"%s\": \"%s\"\n", client->username, target, client->room, message);
     write_log(client->channel, log);
 
@@ -4240,7 +4243,7 @@ char* get_timestamp() {
 
 void write_log(char* channel, char* message) {
     // Prepare log path
-    char path_log[MAX_BUFFER];
+    char path_log[MAX_BUFFER * 2];
     sprintf(path_log, "%s/%s/admin/log.csv", cwd, channel);
 
     // Open log file
