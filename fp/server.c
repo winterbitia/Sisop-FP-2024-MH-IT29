@@ -2196,6 +2196,17 @@ void edit_room(char *changed, char *new, client_data *client){
     // Prepare response
     char response[MAX_BUFFER];
 
+    // Check if user is trying to edit admin or to admin
+    if (strcmp(changed, "admin") == 0 || strcmp(new, "admin") == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT ROOM] Error: Invalid room name\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Invalid room name");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
     // Check if user is in a channel
     if (strlen(client->channel) == 0) {
         // DEBUGGING
