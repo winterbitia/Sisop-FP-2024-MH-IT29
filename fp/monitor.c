@@ -39,15 +39,15 @@ int handle_command(const char *buffer);
 int main(int argc, char *argv[]) {
     // Validate arguments:
     if (argc < 5) {
-        printf("Usage: ./discorit LOGIN <username> -p <password>"
+        printf("Usage: ./monitor LOGIN <username> -p <password>"
                "\n(not enough arguments)");
         return 1;
   } if (strcmp(argv[1], "LOGIN") != 0) {
-        printf("Usage: ./discorit LOGIN <username> -p <password>"
+        printf("Usage: ./monitor LOGIN <username> -p <password>"
                "\n(invalid command)");
         return 1;
   } if (strcmp(argv[3], "-p") != 0) {
-        printf("Usage: ./discorit LOGIN <username> -p <password>"
+        printf("Usage: ./monitor LOGIN <username> -p <password>"
                 "\n(missing -p flag)");
         return 1;
     }
