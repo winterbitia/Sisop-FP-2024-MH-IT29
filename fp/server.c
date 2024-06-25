@@ -304,7 +304,7 @@ void handle_input(void *arg){
     int client_fd = client->socket_fd;
 
     char buffer[MAX_BUFFER];
-    char response[MAX_BUFFER];
+    char response[MAX_BUFFER*2];
 
     while(1){
         // DEBUGGING
