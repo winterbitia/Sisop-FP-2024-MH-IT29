@@ -566,7 +566,177 @@ int login_user(char *username, char *password, client_data *client) {
 
 ### Client
 
-jelasin apa yg terjadi di handle_account terus jelasin loop di discorit dan secara garis besar apa yg dilakukan handle_command
+Setelah user berhasil login, fungsi `handle_account` akan mengirimkan buffer yang berisi informasi login ke server dan menerima respon. Respon dari server akan diparsing untuk memisahkan jenis pesan dan isi pesan. Jika respon adalah pesan biasa ("MSG"), pesan tersebut akan ditampilkan di layar. Jika respon adalah pesan login ("LOGIN"), pesan selamat datang akan ditampilkan. Setelah itu, program masuk ke dalam loop utama di `discorit`, dimana user dapat memasukkan perintah. Setiap perintah yang dimasukkan akan diproses oleh `handle_command`, yang mengirimkan perintah tersebut ke server dan menerima respon. Fungsi `handle_command` juga memproses jenis-jenis respon yang berbeda, seperti pesan biasa, perubahan nama channel atau room, keluar dari channel atau room, perubahan username, permintaan key, atau perintah keluar. Semua ini memungkinkan user untuk berinteraksi dengan server, berpindah channel atau room, mengubah username, dan mengirim serta menerima pesan dengan lancar.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//==================//
+// COMMAND HANDLING //
+//==================//
+
+// Account handler function
+int handle_account(const char *buffer) {
+    // Check if buffer is empty
+    if (buffer == NULL) {
+        perror("buffer is empty");
+        exit(EXIT_FAILURE);
+    }
+
+    // Send request
+    if (send(server_fd, buffer, strlen(buffer), 0) < 0) {
+        perror("send failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Receive response
+    char response[MAX_BUFFER];
+    memset(response, 0, MAX_BUFFER);
+    if (recv(server_fd, response, MAX_BUFFER, 0) < 0) {
+        perror("recv failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Parse response
+    char *type = strtok(response, ",");
+    char *message = strtok(NULL, ",");
+
+    // Default message received
+    if (strcmp(type, "MSG") == 0){
+        printf("%s\n", message);
+        return 0;
+    }
+
+    // Login status sending
+    else if (strcmp(type, "LOGIN") == 0){
+        printf("%s\n", message);
+        return 1;
+    }
+}
+
+// Command handler function
+int handle_command(const char *buffer) {
+    // Check if buffer is empty
+    if (buffer == NULL) {
+        perror("buffer is empty");
+        exit(EXIT_FAILURE);
+    }
+
+    // Send request
+    if (send(server_fd, buffer, strlen(buffer), 0) < 0) {
+        perror("send failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Receive response
+    char response[MAX_BUFFER*8];
+    memset(response, 0, MAX_BUFFER*8);
+    if (recv(server_fd, response, MAX_BUFFER*8, 0) < 0) {
+        perror("recv failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Parse response
+    char *type = strtok(response, ",");
+    char *message = strtok(NULL, ",");
+
+    // Default message received
+    if (strcmp(type, "MSG") == 0){
+        printf("%s\n", message);
+        return 0;
+    }
+
+    // Channel/room variable sending
+    else if (strcmp(type, "CHANNEL") == 0){
+        // Parse channel name
+        char *channel_name = strtok(NULL, ",");
+
+        // Check if parsing is correct
+        if (channel_name == NULL) {
+            perror("channel name is empty");
+            exit(EXIT_FAILURE);
+        }
+
+        // Copy channel name
+        strcpy(channel, channel_name);
+        printf("%s\n", message);
+        return 0;
+    } else if (strcmp(type, "ROOM") == 0){
+        // Parse room name
+        char *room_name = strtok(NULL, ",");
+
+        // Check if parsing is correct
+        if (room_name == NULL) {
+            perror("room name is empty");
+            exit(EXIT_FAILURE);
+        }
+
+        // Copy room name
+        strcpy(room, room_name);
+        printf("%s\n", message);
+        return 0;
+    }
+
+    // Channel/room exiting
+    else if (strcmp(type, "EXIT") == 0){
+        // Parse exit type
+        char *exit_type = strtok(NULL, ",");
+
+        // Check if parsing is correct
+        if (exit_type == NULL) {
+            perror("exit type is empty");
+            exit(EXIT_FAILURE);
+        }
+
+        // Check if exiting channel
+        if (strcmp(exit_type, "CHANNEL") == 0) {
+            memset(channel, 0, 100);
+            // also reset room in case user is in a room
+            memset(room, 0, 100);
+            printf("%s\n", message);
+            return 0;
+        }
+
+        // Check if exiting room
+        else if (strcmp(exit_type, "ROOM") == 0) {
+            memset(room, 0, 100);
+            printf("%s\n", message);
+            return 0;
+        }
+    }
+
+    // Username change
+    else if (strcmp(type, "USERNAME") == 0){
+        // Parse new username
+        char *new_username = strtok(NULL, ",");
+
+        // Check if parsing is correct
+        if (new_username == NULL) {
+            perror("new username is empty");
+            exit(EXIT_FAILURE);
+        }
+
+        // Copy new username
+        strcpy(username, new_username);
+        printf("%s\n", message);
+        return 0;
+    }
+
+    // Key request
+    else if (strcmp(type, "KEY") == 0){
+        printf("%s\n", message);
+        return 1;
+    }
+
+    // Quit message
+    else if (strcmp(type, "QUIT") == 0){
+        printf("%s\n", message);
+        return 2;
+    }
+}
+```
+</details>
 
 ### Server
 
