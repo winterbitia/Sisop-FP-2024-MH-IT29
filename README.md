@@ -185,26 +185,23 @@ seperti biasa, tapi di akhir ada remove directory
 
 **Kode**:
 ```c
-// Pseudocode for handling room deletion in server
-void handle_delete_room(const char *room_name) {
-    if (strcmp(room_name, "admin") == 0) {
-        printf("Cannot delete 'admin' room.\n");
+void delete_room(char *room, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is trying to delete admin
+    if (strcmp(room, "admin") == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Error: Invalid room name\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Invalid room name");
+        send(client_fd, response, strlen(response), 0);
         return;
     }
 
-    // Find all clients in the room
-    for (int i = 0; i < MAX_CLIENTS; ++i) {
-        if (clients[i] != NULL && strcmp(clients[i]->room, room_name) == 0) {
-            // Send message to client to leave the room
-            send(clients[i]->sockfd, "ROOM DELETED,Your room has been deleted by admin", strlen("ROOM DELETED,Your room has been deleted by admin"), 0);
-            // Clear room name on client
-            memset(clients[i]->room, 0, sizeof(clients[i]->room));
-        }
-    }
-
-    // Proceed with room deletion on server
-    // Code to delete the room from server records
-}
 ```
 
 ### Bonus Case 2: 
@@ -219,16 +216,28 @@ void handle_delete_room(const char *room_name) {
 
 **Kode**:
 ```c
-// Part of the delete room function in server
-void handle_delete_room(const char *room_name) {
-    if (strcmp(room_name, "admin") == 0) {
-        printf("Cannot delete 'admin' room.\n");
+ // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
         return;
     }
 
-    // Proceed with room deletion on server
-    // Code to delete the room from server records
-}
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][DELETE ROOM] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
 ```
 
 ### Delete Room All
@@ -240,14 +249,33 @@ void handle_delete_room(const char *room_name) {
 
 **Kode**:
 ```c
-// Pseudocode for deleting all rooms except "admin"
-void handle_delete_all_rooms() {
-    for (int i = 0; i < total_rooms; ++i) {
-        if (strcmp(rooms[i], "admin") != 0) {
-            handle_delete_room(rooms[i]);
-        }
+void delete_all_rooms(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
     }
-}
+
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][DELETE ALL ROOMS] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
 ```
 
 ### Ban
@@ -260,20 +288,32 @@ void handle_delete_all_rooms() {
 
 **Kode**:
 ```c
-// Pseudocode for checking if a user is banned
-int is_user_banned(const char *username) {
-    // Code to check if user is banned in database or file
-    // Return 1 if banned, 0 otherwise
-}
+int check_ban(client_data *client) {
+    int client_fd = client->socket_fd;
 
-// Example usage in server function
-void handle_check_ban(const char *username) {
-    if (is_user_banned(username)) {
-        printf("%s is banned.\n", username);
-    } else {
-        printf("%s is not banned.\n", username);
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][CHECK BAN] Error: User is not in a channel\n", client->username);
+
+        // Return 0 if user is not in a channel
+        return 0;
     }
-}
+
+    // Open auth file
+    char path_auth[MAX_BUFFER * 2];
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
+    FILE *file = fopen(path_auth, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][CHECK BAN] Error: Unable to open file\n", client->username);
+
+        // Return -1 if file cannot be opened
+        return -1;
+    }
+
 ```
 
 #### Ban User
@@ -286,18 +326,20 @@ void handle_check_ban(const char *username) {
 
 **Kode**:
 ```c
-// Pseudocode for banning a user
-void ban_user(const char *username) {
-    // Code to update user status to banned in database or file
-    printf("%s has been banned.\n", username);
-}
+// Check if user is banned
+        int ban = check_ban(client);
+        if (ban == 1){
+            // DEBUGGING
+            printf("[%s] User is banned\n", client->username);
 
-// Example usage in server function
-void handle_ban_user(const char *username) {
-    ban_user(username);
-    send_user_message(username, "You have been banned.");
-    send_admin_message("User has been banned.");
-}
+            // Update client channel and room
+            memset(client->channel, 0, 100);
+            memset(client->room, 0, 100);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER * 2);
+            sprintf(response, "EXIT,Error: User is banned,CHANNEL");
+            send(client_fd, response, strlen(response), 0);
 ```
 
 #### Unban User
@@ -310,17 +352,38 @@ void handle_ban_user(const char *username) {
 
 **Kode**:
 ```c
-// Pseudocode for unbanning a user
-void unban_user(const char *username) {
-    // Code to update user status to unbanned in database or file
-    printf("%s has been unbanned.\n", username);
-}
+} else if (strcmp(command, "UNBAN") == 0){
+            // Parse data from client
+            char *target = strtok(NULL, " ");
 
-// Example usage in server function
-void handle_unban_user(const char *username) {
-    unban_user(username);
-    send_user_message(username, "You have been unbanned.");
-    send_admin_message("User has been unbanned.");
+            // Check if command is valid
+            if (target == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid unban (missing target)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing unban target)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, target);
+
+            // Call unban user function
+            unban_user(target, client);
+
+        } else {
+            // DEBUGGING
+            printf("[%s] Error: Command not found\n", client->username);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER * 2);
+            sprintf(response, "MSG,Error: Command not found");
+            send(client_fd, response, strlen(response), 0);
+        }
+    }
 }
 ```
 
@@ -334,18 +397,36 @@ void handle_unban_user(const char *username) {
 
 **Kode**:
 ```c
-// Pseudocode for removing a user from a channel
-void remove_user_from_channel(const char *channel, const char *username) {
-    // Code to remove user entry from auth.csv file
-    printf("%s has been removed from %s.\n", username, channel);
-}
+void remove_user(char *username, client_data *client) {
+    int client_fd = client->socket_fd;
 
-// Example usage in server function
-void handle_remove_user(const char *channel, const char *username) {
-    remove_user_from_channel(channel, username);
-    send_user_message(username, "You have been removed from the channel.");
-    send_admin_message("User has been removed from the channel.");
-}
+    // DEBUGGING
+    printf("[%s][REMOVE USER] username: %s\n", client->username, username);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is trying to remove self
+    if (strcmp(client->username, username) == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: User is trying to remove self\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is trying to remove self");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 ```
 
 ### User
@@ -358,16 +439,37 @@ void handle_remove_user(const char *channel, const char *username) {
 
 **Kode**:
 ```c
-// Pseudocode for seeing user data
-void see_user_data(const char *username) {
-    // Code to retrieve and send user data to the client
-    printf("User data for %s sent.\n", username);
-}
+void list_user(client_data *client) {
+    int client_fd = client->socket_fd;
 
-// Example usage in server function
-void handle_see_user_data(const char *username) {
-    see_user_data(username);
-}
+    // Prepare response
+    char response[MAX_BUFFER * 2];
+    sprintf(response, "MSG,");
+
+    // Check if user is not root
+    if (strcmp(client->role, "ROOT") != 0) {
+        // DEBUGGING
+        printf("[%s][LIST USER] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open users file
+    FILE *file = fopen(users_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][LIST USER] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 ```
 
 #### Edit Profile Self (Username)
@@ -379,16 +481,27 @@ void handle_see_user_data(const char *username) {
 
 **Kode**:
 ```c
-// Pseudocode for editing own username
-void edit_own_username(const char *old_username, const char *new_username) {
-    // Code to update username in database or file
-    printf("%s has changed their username to %s.\n", old_username, new_username);
-}
+void edit_username(char *username, char *newusername, client_data *client) {
+    int client_fd = client->socket_fd;
 
-// Example usage in server function
-void handle_edit_own_username(const char *old_username, const char *new_username) {
-    edit_own_username(old_username, new_username);
-}
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] username: %s, newusername: %s\n", client->username, username, newusername);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0)
+    // Check if user is editing self
+    if (strcmp(client->username, username) != 0) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 ```
 
 #### Edit Profile Self (Password)
@@ -402,16 +515,27 @@ void handle_edit_own_username(const char *old_username, const char *new_username
 
 **:
 ```c
-// Pseudocode for editing own password
-void edit_own_password(const char *username, const char *new_password) {
-    // Code to update password in database or file
-    printf("%s has changed their password.\n", username);
-}
+void edit_password(char *username, char *newpassword, client_data *client) {
+    int client_fd = client->socket_fd;
 
-// Example usage in server function
-void handle_edit_own_password(const char *username, const char *new_password) {
-    edit_own_password(username, new_password);
-}
+    // DEBUGGING
+    printf("[%s][EDIT PASSWORD] username: %s, newpassword: %s\n", client->username, username, newpassword);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0)
+    // Check if user is editing self
+    if (strcmp(client->username, username) != 0) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 ```
 
 ### Exit
@@ -424,15 +548,13 @@ void handle_edit_own_password(const char *username, const char *new_password) {
 
 **Kode**:
 ```c
-// Pseudocode for exiting a room
-void exit_room(const char *username) {
-    // Code to clear room variable for the user
-    printf("%s has exited the room.\n", username);
-}
+ printf("[%s][EXIT ROOM] Exiting room\n", client->username);
 
-// Example usage in server function
-void handle_exit_room(const char *username) {
-    exit_room(username);
+    // Exit room since user is in a room
+    strcpy(client->room, "");
+    sprintf(response, "EXIT,Exited room %s,ROOM", client->room);
+    send(client_fd, response, strlen(response), 0);
+    return;
 }
 ```
 
@@ -445,16 +567,16 @@ void handle_exit_room(const char *username) {
 
 **Kode**:
 ```c
-// Pseudocode for exiting a channel
-void exit_channel(const char *username) {
-    // Code to clear channel variable for the user
-    printf("%s has exited the channel.\n", username);
-}
+ if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][EXIT CHANNEL] Exiting channel\n", client->username);
 
-// Example usage in server function
-void handle_exit_channel(const char *username) {
-    exit_channel(username);
-}
+        // Exit channel since user is not in a room
+        strcpy(client->channel, "");
+        sprintf(response, "EXIT,Exited channel %s,CHANNEL", client->channel);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
 ```
 
 #### Exit Discorit
@@ -466,89 +588,90 @@ void handle_exit_channel(const char *username) {
 
 **Kode**:
 ```c
-// Pseudocode for exiting the application
-void exit_discorit(const char *username) {
-    // Code to handle user exit from the application
-    printf("%s has exited Discorit.\n", username);
-}
+ if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][EXIT DISCORIT]\n", client->username);
 
-// Example usage in server function
-void handle_exit_discorit(const char *username) {
-    exit_discorit(username);
-}
+        // Send response to client
+        sprintf(response, "QUIT,Gracefully disconnecting from server...");
+        send(client_fd, response, strlen(response), 0);
+
+        // Close client connection
+        close(client_fd);
+        free(client);
+        pthread_exit(NULL);
+        return;
+    }
 ```
 
 ### User Log
-**Penjelasan**: Mencatat berbagai aktivitas user seperti login, logout, penghapusan room, dll., di `user.log`.
+**Penjelasan**: Fungsi ini digunakan untuk mencatat pesan log ke dalam file `log.csv` yang terletak di direktori admin pada channel tertentu. Ini berarti semua aktivitas yang tercatat di log ini berhubungan dengan manajemen channel tersebut, seperti pembuatan dan penghapusan room, serta aktivitas lain yang relevan dengan pengelolaan channel..
 
 **Alur**:
-1. **Aktivitas user dicatat**: Server mencatat aktivitas user di file `user.log`.
-2. **Catatan terhubung dengan channel**: Catatan ini bisa dihubungkan dengan channel yang relevan.
+1. **Persiapan Path Log**: Fungsi mempersiapkan path menuju file log (`log.csv`) di dalam direktori "admin" pada channel yang ditentukan. Path ini dibentuk dengan menggunakan direktori kerja saat ini (`cwd`) dan nama channel yang diberikan sebagai parameter.
+
+2. **Membuka File Log**: File log dibuka dalam mode `a+` (append/update mode), yang memungkinkan penulisan data baru ke akhir file dan memungkinkan juga untuk membaca file jika diperlukan.
+
+3. **Pengecekan Ketersediaan File**: Jika file log tidak dapat dibuka (misalnya, karena masalah akses atau direktori tidak ada), fungsi akan mencetak pesan kesalahan dan menghentikan proses pencatatan log.
+
 
 **Kode**:
 ```c
-// Pseudocode for logging user activity
-void log_user_activity(const char *username, const char *activity) {
-    // Code to write user activity to user.log
-    printf("Logged activity for %s: %s\n", username, activity);
-}
+void write_log(char* channel, char* message) {
+    // Prepare log path
+    char path_log[MAX_BUFFER * 2];
+    sprintf(path_log, "%s/%s/admin/log.csv", cwd, channel);
 
-// Example usage in server function
-void handle_user_activity(const char *username, const char *activity) {
-    log_user_activity(username, activity);
+    // Open log file
+    FILE *file = fopen(path_log, "a+");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        printf("[LOG] Error: Unable to open file\n");
+        return;
+    }
+
+    // Get timestamp
+    char *timestamp = get_timestamp();
+
+    // Write to log file
+    fprintf(file, "[%s] %s", timestamp, message);
+
+    // Close file
+    fclose(file);
+    return;
 }
 ```
 
 ### Monitor
-**Penjelasan**: Monitor adalah fitur yang memperbarui tampilan chat setiap 5 detik jika user berada dalam room.
+**Penjelasan**: Monitor adalah program yang berfungsi untuk memantau aktivitas chat server secara real-time. Program ini memungkinkan pengguna untuk melihat percakapan di saluran dan ruang tertentu serta memberikan kemampuan untuk berpindah antar saluran dan ruang.
 
-**Alur**:
-1. **Monitor loop**: Server memperbarui tampilan chat setiap 5 detik.
-2. **Input dari user**: Jika ada input dari user, thread baru dibuat untuk menangani input tersebut.
-
-**Kode**:
-```c
-// Pseudocode for monitor loop
-void monitor_loop() {
-    while (1) {
-        // Code to update chat display every 5 seconds
-        sleep(5);
-        // Code to handle user input in a new thread
-    }
-}
-
-// Example usage in server function
-void handle_monitor() {
-    pthread_t monitor_thread;
-    pthread_create(&monitor_thread, NULL, monitor_loop, NULL);
-}
-```
 
 ### Autentikasi
 #### Pemilihan Channel dan Room
-**Penjelasan**: Menangani perintah dengan memeriksa apakah perintah tersebut adalah "EXIT" atau tidak, kemudian memproses input channel dan room.
+**Penjelasan**: Ketika pengguna memberikan perintah, pertama-tama program memeriksa apakah perintah tersebut adalah untuk keluar (EXIT). Jika pengguna berada dalam sebuah ruangan, sistem secara otomatis akan mengosongkan ruangan dengan mengirim perintah EXIT, yang menghapus status pengguna dari ruangan yang sedang aktif.
+
+Selanjutnya, setiap perintah yang mengandung `-channel` diikuti dengan nama channel dan `-room` diikuti dengan nama ruangan akan diproses untuk bergabung ke channel atau ruangan yang sesuai. Ini memastikan bahwa pengguna dapat beralih antara channel dan ruangan dengan lancar sesuai dengan permintaan mereka.
 
 **Alur**:
-1. **Periksa perintah EXIT**: Server memeriksa apakah perintah yang diberikan oleh user adalah "EXIT".
-2. **Proses input channel dan room**: Jika bukan perintah "EXIT", server memproses input untuk memilih channel dan room.
+1. **Pengecekan Command EXIT**: Pertama, fungsi `parse_command` memeriksa apakah perintah yang diberikan adalah EXIT atau bukan. Jika pengguna sedang berada dalam sebuah ruangan (`room` tidak kosong), maka fungsi `parse_command` akan menangani perintah EXIT dengan menjalankan fungsi `handle_command("EXIT")`. Ini mengakibatkan pengosongan `room` dan `channel` yang sesuai dengan keluar dari ruangan.
+
+2. **Penanganan Input -channel dan -room**: Setelah melewati pengecekan EXIT, fungsi `parse_command` mem-parse input pengguna untuk memastikan bahwa command yang diberikan adalah `-channel` diikuti dengan nama channel dan `-room` diikuti dengan nama ruangan. Jika formatnya benar, maka dua request akan disiapkan (`JOIN <channel>` dan `JOIN <room>`) dan diproses menggunakan `handle_command`.
 
 **Kode**:
 ```c
-// Pseudocode for handling command
-void handle_command(const char *command) {
-    if (strcmp(command, "EXIT") == 0) {
-        // Code to handle exit command
-        return;
+ if (strlen(room) > 0 || strlen(channel) > 0) {
+        while (strlen(room) > 0 || strlen(channel) > 0) 
+            handle_command("EXIT");
+        return; 
     }
 
-    // Code to handle channel and room selection
-    if (strstr(command, "-channel") != NULL) {
-        // Code to handle channel selection
+    // Handle EXIT command
+    if (handle_command(buffer) == 2) {
+        close(server_fd);
+        exit(EXIT_SUCCESS);
     }
-
-    if (strstr(command, "-room") != NULL) {
-        // Code to handle room selection
-    }
+    return;
 }
 ```
 
@@ -561,51 +684,69 @@ void handle_command(const char *command) {
 
 **Kode**:
 ```c
-// Pseudocode for monitor loop
-void monitor_loop() {
-    while (1) {
-        // Code to update chat display every 5 seconds
-        sleep(5);
-        // Code to handle user input in a new thread
-    }
-}
+ while (strlen(room) > 0) {
+            clear_terminal();
+            printf("==========================================\n");
+            handle_command("SEE CHAT");
+            printf("==========================================\n"
+                   "[!] Monitor refreshes every 5 seconds\n"
+                   "[!] Type EXIT to leave the room\n"
+                   "==========================================\n");  
 
-// Example usage in server function
-void handle_monitor() {
-    pthread_t monitor_thread;
-    pthread_create(&monitor_thread, NULL, monitor_loop, NULL);
+            // Handle user input
+            pthread_t tid;
+            pthread_create(&tid, NULL, input_handler, NULL);
+
+            // Refresh every 5 seconds
+            sleep(5); pthread_cancel(tid);
+        }
+
+        // Handle user input
+        pthread_t tid;
+        pthread_create(&tid, NULL, input_handler, NULL);
+        pthread_join(tid, NULL);
+    }
 }
 ```
 
 ### Exiting
-**Penjelasan**: Menggunakan `strstr` dan `strcmp` untuk membedakan jenis exit karena tampilan di monitor loop diperbarui setiap 5 detik, sehingga jenis exit perlu ditangani secara tepat untuk memastikan keluarnya user tercatat dengan benar.
+**Penjelasan**: Pada bagian exit, terdapat pengecekan menggunakan `strstr` dan `strcmp` untuk menentukan jenis exit yang dilakukan. Hal ini penting karena ada perbedaan antara keluar dari channel dan keluar dari room.
 
 **Alur**:
-1. **Periksa jenis exit**: Menggunakan `strstr` dan `strcmp` untuk memeriksa jenis exit.
-2. **Proses exit sesuai jenisnya**: Server memproses exit sesuai dengan jenis exit yang terdeteksi.
+1. **strstr(buffer, "EXIT")**: Mengecek apakah perintah `EXIT` terdapat dalam buffer. Ini digunakan untuk keluar dari room atau channel saat pengguna berada di dalamnya.
+2.  **strcmp(command1, "EXIT")**: Mengecek apakah perintah yang diberikan adalah `EXIT`. Ini digunakan untuk keluar dari program atau mengakhiri sesi monitor.
 
 **Kode**:
 ```c
-// Pseudocode for exiting
-void handle_exit(const char *command) {
-    if (strcmp(command, "EXIT ROOM") == 0) {
-        // Code to handle exit room
-    } else if (strcmp(command, "EXIT CHANNEL") == 0) {
-        // Code to handle exit channel
-    } else if (strcmp(command, "EXIT DISCORIT") == 0) {
-        // Code to handle exit Discorit
-    }
-}
-
-// Example usage in server function
-void handle_command(const char *command) {
-    if (strstr(command, "EXIT") != NULL) {
-        handle_exit(command);
-        return;
+ int exit_control = 0;
+    if (strlen(room) > 0) {
+        if (strstr(buffer, "EXIT") != NULL) {
+            exit_control = 1;
+        }
+    } else {
+        if (strcmp(command1, "EXIT") == 0) {
+            exit_control = 1;
+        }
     }
 
-    // Other command handling code
-}
+    // Check command1 not EXIT to skip filtering
+    if (exit_control == 0) {
+        // Parse command again
+        char *cname = strtok(NULL, " ");
+        char *command2 = strtok(NULL, " ");
+        char *rname = strtok(NULL, " ");
+
+        // DEBUGGING
+        // printf("Command1: %s\n", command1);
+        // printf("Channel: %s\n", cname);
+        // printf("Command2: %s\n", command2);
+        // printf("Room: %s\n", rname);
+        
+        // Check if command is valid
+        if (command2 == NULL || cname == NULL || rname == NULL) {
+            printf("Error: command is invalid (missing arguments)\n");
+            return;
+        }
 ```
 
 
