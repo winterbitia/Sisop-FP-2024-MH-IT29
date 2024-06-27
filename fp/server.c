@@ -2604,9 +2604,9 @@ void see_user(client_data *client) {
     return;
 }
 
-//=======================//
-// LIST USERS IN CHANNEL //
-//=======================//
+//============//
+// LIST USERS //
+//============//
 
 void list_user(client_data *client) {
     int client_fd = client->socket_fd;
@@ -2615,22 +2615,19 @@ void list_user(client_data *client) {
     char response[MAX_BUFFER * 2];
     sprintf(response, "MSG,");
 
-    // Check if user is in a channel
-    if (strlen(client->channel) == 0) {
+    // Check if user is not root
+    if (strcmp(client->role, "ROOT") != 0) {
         // DEBUGGING
-        printf("[%s][LIST USER] Error: User is not in a channel\n", client->username);
+        printf("[%s][LIST USER] Error: User is not root\n", client->username);
 
         // Send response to client
-        sprintf(response, "MSG,Error: User is not in a channel");
+        sprintf(response, "MSG,Error: User is not root");
         send(client_fd, response, strlen(response), 0);
         return;
     }
 
-    // Prepare channel and auth path
-    char path_channel[MAX_BUFFER * 3], path_auth[4096];
-    sprintf(path_channel, "%s/%s", cwd, client->channel);
-    sprintf(path_auth, "%s/admin/auth.csv", path_channel);
-    FILE *file = fopen(path_auth, "r");
+    // Open users file
+    FILE *file = fopen(users_csv, "r");
 
     // Fail if file cannot be opened
     if (file == NULL) {
@@ -2643,15 +2640,15 @@ void list_user(client_data *client) {
         return;
     }
 
-    // Loop through id and username
-    int id; char username[MAX_BUFFER];
-    while (fscanf(file, "%d,%[^,],%*s", &id, username) == 2) {
+    // Loop through username
+    char namecheck[MAX_BUFFER];
+    while (fscanf(file, "%*d,%[^,],%*[^,],%*s)", namecheck) == 1) {
         // DEBUGGING
-        printf("[%s][LIST USER] id: %d, username: %s\n", client->username, id, username);
+        printf("[%s][LIST USER] User: %s\n", client->username, namecheck);
 
         // Concatenate response
-        if (strlen(response) > 4) strcat(response, " ");
-        strcat(response, username);
+        if (strcmp(response, "MSG,") != 0) strcat(response, " ");
+        strcat(response, namecheck);
     }
 
     // Close file
