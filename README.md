@@ -739,6 +739,69 @@ int handle_command(const char *buffer) {
 </details>
 
 ### Server
+Fungsi `handle_client` bertanggung jawab untuk menangani koneksi dari setiap client yang terhubung ke server chat. Saat dipanggil, fungsi ini menerima socket client sebagai argumen. Pertama, socket client diambil dari argumen dan memori untuk argumen tersebut dibebaskan. Fungsi kemudian menambahkan socket client ke dalam daftar `clients` yang sedang aktif, menggunakan mutex untuk menjaga keamanan akses. Setelah itu, fungsi masuk ke dalam loop yang terus menerus menerima pesan dari client menggunakan `recv`. Setiap pesan yang diterima kemudian disebarkan ke semua client lain dengan fungsi `broadcast_message`. Jika koneksi dengan client terputus, fungsi ini menghapus client dari daftar `clients` dan menutup socket-nya sebelum berakhir.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//===============//
+// HANDLE CLIENT //
+//===============//
+
+void *handle_client(void *arg){
+    client_data *client = (client_data *)arg;
+    int client_fd = client->socket_fd;
+
+    char buffer[MAX_BUFFER];
+    memset(buffer, 0, MAX_BUFFER);
+
+    // Receive data from client
+    if (recv(client_fd, buffer, MAX_BUFFER, 0) < 0){
+        perror("recv failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Parse data from client
+    char *command = strtok(buffer, " ");
+    char *username = strtok(NULL, " ");
+    char *password = strtok(NULL, " ");
+
+    // DEBUGGING
+    printf("command: %s, username: %s, password: %s\n", command, username, password);
+
+    // Register user
+    if (strcmp(command, "REGISTER") == 0){
+        // Call register user function
+        register_user(username, password, client);
+
+        // Close client connection
+        close(client_fd);
+        free(client);
+        pthread_exit(NULL);
+        return NULL;
+    }
+
+    // Login user
+    else if (strcmp(command, "LOGIN") == 0){
+        // Call login user function
+        if (!login_user(username, password, client)){
+            // Close client connection when login fails
+            close(client_fd);
+            free(client);
+            pthread_exit(NULL);
+            return NULL;
+        }
+
+        // DEBUGGING
+        printf("[%s][LOGIN]\n", username);
+
+        // Call handle input function
+        handle_input(client);
+    }
+}
+```
+</details>
 
 Setelah berhasil login, handle_input akan menunggu perintah dari client dengan terus mendengarkan data yang dikirimkan melalui socket. Perintah yang diterima akan diproses berdasarkan jenisnya, seperti "EXIT" untuk keluar, "SEE" untuk melihat informasi tertentu, "CREATE" untuk membuat channel atau room baru, dan lain-lain. Sebelum memproses perintah, fungsi ini akan memeriksa keberadaan dan status user untuk memastikan bahwa user tidak di-ban. Jika user di-ban, maka akan mengirimkan pesan error ke client dan menunggu perintah berikutnya. Setiap perintah yang valid akan memanggil fungsi terkait untuk menjalankan aksi yang diminta, seperti create_channel untuk perintah "CREATE CHANNEL" atau send_chat untuk perintah "CHAT". Ini memastikan bahwa setiap interaksi client dengan server ditangani dengan benar sesuai dengan perintah yang diberikan.
 **Kode**:
