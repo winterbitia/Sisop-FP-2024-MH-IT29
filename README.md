@@ -478,8 +478,89 @@ void encrypt_password(char *password, char *encrypted_password) {
 </details>
 
 ## Fungsi Login di Server
+Fungsi `login_user` pada server bertugas memverifikasi user yang mencoba login. Pertama, fungsi ini meng-hash password input menggunakan `crypt`. Kemudian, file `users.csv` yang berisi data user dibuka dalam mode read. Jika file tidak bisa dibuka, fungsi mengirim pesan error ke client. Selanjutnya, fungsi membaca data user dari file, mengecek apakah username yang diberikan ada di file. Jika ditemukan username yang cocok, fungsi memverifikasi apakah password yang di-hash cocok dengan hash yang disimpan. Jika cocok, data pengguna (ID, username, dan role) disimpan dalam struktur `client`, file ditutup, dan pesan sukses dikirim ke client. Jika password tidak cocok, atau username tidak ditemukan di file, fungsi mengirim pesan error yang sesuai ke client dan menutup file.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin alurnya
+```c
+//============//
+// LOGIN UsER //
+//============//
+
+int login_user(char *username, char *password, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Hash password from input
+    char hash[MAX_BUFFER];
+    strcpy(hash,crypt(password, HASHCODE));
+    
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[LOGIN] Error: Unable to open file\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return 0;
+    }
+
+    // Loop through id, username, and password
+    int id = 0; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[LOGIN] id: %d, name: %s, pass: %s, role: %s\n", id, namecheck, passcheck, role);
+
+        // Fail if username and password do not match
+        if (strcmp(namecheck, username) == 0) {
+            if (strcmp(passcheck, hash) == 0) {
+                // DEBUGGING
+                printf("[LOGIN] Success: Username and password match\n");
+
+                // Finishing up
+                client->id = id;
+                strcpy(client->username, username);
+                strcpy(client->role, role);
+                fclose(file);
+
+                // DEBUGGING
+                printf("[LOGIN] client_id: %d, client_name: %s, client_role: %s\n", client->id, client->username, client->role);
+
+                // Send response to client
+                sprintf(response, "LOGIN,Welcome to DiscorIT!\n");
+                send(client_fd, response, strlen(response), 0);
+                return 1;
+            }
+
+            // DEBUGGING
+            printf("[LOGIN] Error: Password does not match\n");
+
+            // Fail if password does not match
+            sprintf(response, "MSG,Error: Password does not match");
+            send(client_fd, response, strlen(response), 0);
+            fclose(file);
+            return 0;
+        }
+    }
+
+    // DEBUGGING
+    printf("[LOGIN] Error: Username does not exist\n");
+
+    // Send response to client
+    sprintf(response, "MSG,Error: Username does not exist");
+    send(client_fd, response, strlen(response), 0);
+    fclose(file);
+    return 0;
+}
+```
+</details>
 
 ## Apa yang terjadi setelah Login
 
