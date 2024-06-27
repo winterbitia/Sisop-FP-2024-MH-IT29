@@ -8,8 +8,15 @@
 # WORK IN PROGRESS !!!
 
 # Pendahuluan
+Dalam final project praktikum DiscorIT, kami diminta untuk menyelesaikan implementasi sebuah sistem chat berbasis socket yang terdiri dari tiga file utama yaitu discorit.c (client untuk mengirim request), server.c (server yang menerima dan merespon request), dan monitor.c (client untuk menampilkan chat secara real-time).
 
-(jelasin singkat tentang persoalan) buat bagian" berikutnya jgn lupa dokumentasi screenshot ataupun bikin gif kalo niat
+Program ini memungkinkan user untuk berkomunikasi secara real-time melalui channel dan room yang dapat dikelola oleh user dengan peran tertentu. User harus melakukan autentikasi sebelum dapat mengakses fitur-fitur yang ada. Keamanan juga dijamin dengan menggunakan bcrypt untuk enkripsi password dan key channel.
+
+### Tree
+ini gambar
+
+### Keterangan Setiap File
+ini gambar
 
 # Authentikasi
 
