@@ -164,10 +164,174 @@ int handle_account(const char *buffer) {
 </details>
 
 ## Login/Register (Server)
+### Mendapatkan Folder Menggunakan getcwd
+Awalnya server akan mendapat folder menggunakan fungsi getcwd. Ini digunakan untuk menyimpan dan mengakses file users.csv dan channels.csv.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin alur awal server mulai dari dapetin folder pake cwd, start server, masalah daemon, sampe loop tunggu client supaya dibuat thread buat masing" client yg connect buat ngehandle masing client
+```c
+int main(int argc, char *argv[]){
+    // Get current directory
+    getcwd(cwd, sizeof(cwd));    
+    sprintf(users_csv, "%s/users.csv", cwd);
+    sprintf(channels_csv, "%s/channels.csv", cwd);
 
-jelasin handling buffer yang dikirim client buat register/login dan apa yg terjadi berikutnya
+    // Start server
+    start_server();
+
+    // Foreground handling
+    if (argc > 1 && strcmp(argv[1], "-f") == 0){
+        printf("[SERVER] running in foreground!\n");
+    } else daemonize();
+
+    // Accept incoming connections
+    while (1){
+        if ((gclient_fd = accept(server_fd, (struct sockaddr *)&address, &addrlen)) < 0){
+            perror("accept failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // Prepare client data
+        client_data *client = (client_data *)malloc(sizeof(client_data));
+        client->socket_fd = gclient_fd;
+        memset(client->username, 0, MAX_BUFFER);
+        memset(client->role, 0, 5);
+
+        // Create thread for client
+        pthread_t thread;
+        pthread_create(&thread, NULL, handle_client, (void *)client);
+
+        // Daemon sleep
+        sleep(1);
+    }
+}
+```
+</details>
+
+### Start Server
+Fungsi `start_server` bertanggung jawab untuk menginisialisasi server dengan beberapa langkah penting. Pertama, fungsi ini membuat sebuah socket yang akan digunakan untuk komunikasi jaringan. Jika pembuatan socket gagal, program akan menampilkan pesan kesalahan dan keluar. Selanjutnya, socket tersebut diikat (bind) ke alamat dan port tertentu, memungkinkan server untuk menerima koneksi dari klien melalui port tersebut. Jika proses pengikatan gagal, program akan menampilkan pesan kesalahan dan keluar. Setelah socket berhasil diikat, server akan mendengarkan koneksi masuk dari klien, siap dalam menerima sejumlah koneksi yang telah ditentukan oleh `MAX_CLIENTS`. Jika proses ini gagal, program akan menampilkan pesan kesalahan dan keluar. Sebagai tambahan, server akan menampilkan pesan debug untuk menunjukkan bahwa server telah dimulai dan mendengarkan pada port yang ditentukan.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+void start_server(){
+    // Create socket file descriptor
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0){
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Bind socket to port
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0){
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Listen for incoming connections
+    if (listen(server_fd, MAX_CLIENTS) < 0){
+        perror("listen failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // DEBUGGING
+    printf("[SERVER] Started on port %d\n", PORT);
+}
+```
+</details>
+
+### Daemon
+Jika server dijalankan tanpa flag `-f`, maka server akan berjalan sebagai daemon. Fungsi `daemonize` bertugas untuk memisahkan proses dari terminal dan menjalankannya di latar belakang. Langkah pertama adalah melakukan fork untuk membuat child process, dan jika berhasil, parent process akan keluar sehingga hanya child process yang berjalan. Selanjutnya, umask diatur ke 0 untuk memastikan izin file yang benar, dan session ID baru dibuat dengan `setsid()` untuk memisahkan proses dari terminal pengendali. Folder diubah ke root (`/`) untuk menghindari penguncian folder tertentu. Setelah itu, file deskriptor standar (`stdin`, `stdout`, dan `stderr`) ditutup untuk memutus hubungan dengan terminal, dan kemudian diarahkan ke `/dev/null` untuk memastikan input/output daemon tidak mengganggu atau terganggu oleh terminal.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+void daemonize(){
+    pid_t pid, sid;
+    pid = fork();
+    if (pid < 0) exit(EXIT_FAILURE);
+    if (pid > 0) exit(EXIT_SUCCESS);
+
+    umask(0);
+    sid = setsid();
+    if (sid < 0) exit(EXIT_FAILURE);
+
+    if ((chdir("/")) < 0) exit(EXIT_FAILURE);
+
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+
+    open("/dev/null", O_RDONLY); // stdin
+    open("/dev/null", O_WRONLY); // stdout
+    open("/dev/null", O_WRONLY); // stderr
+}
+```
+</details>
+
+### Menunggu Koneksi Client dan Membuat Thread
+Untuk menunggu koneksi masuk dari klien dan membuat thread baru untuk menangani setiap koneksi, server menggunakan sebuah loop tak terbatas. Di setiap iterasi loop, server akan memanggil `accept()` untuk menerima koneksi dari klien. Jika koneksi diterima dengan sukses, server akan menyiapkan struktur data `client_data` untuk menyimpan informasi klien seperti file descriptor socket, username, dan peran (role). Selanjutnya, server membuat thread baru menggunakan `pthread_create()` yang akan menjalankan fungsi `handle_client` untuk menangani komunikasi dengan klien menggunakan data `client_data` yang telah disiapkan. Proses ini memungkinkan server untuk melayani beberapa klien secara bersamaan dengan menggunakan thread terpisah untuk setiap koneksi. Setelah membuat thread, server melakukan `sleep(1)` untuk memberi jeda sebelum kembali menunggu koneksi baru, menyesuaikan kecepatan proses dengan penggunaan sumber daya yang optimal.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+// Accept incoming connections
+while (1){
+    if ((gclient_fd = accept(server_fd, (struct sockaddr *)&address, &addrlen)) < 0){
+        perror("accept failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Prepare client data
+    client_data *client = (client_data *)malloc(sizeof(client_data));
+    client->socket_fd = gclient_fd;
+    memset(client->username, 0, MAX_BUFFER);
+    memset(client->role, 0, 5);
+
+    // Create thread for client
+    pthread_t thread;
+    pthread_create(&thread, NULL, handle_client, (void *)client);
+
+    // Daemon sleep
+    sleep(1);
+}
+```
+</details>
+
+### Handling Buffer yang Dikirim Client untuk Register/Login
+Untuk menangani buffer yang dikirim oleh klien untuk proses registrasi (REGISTER) atau masuk (LOGIN), fungsi handle_client berperan penting. Pertama, fungsi ini membaca data dari klien melalui socket menggunakan recv() dan menyimpannya dalam buffer buffer dengan ukuran maksimum MAX_BUFFER. Setelah menerima data, fungsi menggunakan strtok() untuk memisahkan perintah (command) dari buffer, yang kemudian dibandingkan dengan string "REGISTER" atau "LOGIN". Jika command sesuai dengan "REGISTER", fungsi handle_register dipanggil untuk memproses registrasi klien dengan data yang diterima. Sedangkan jika command adalah "LOGIN", fungsi handle_login dipanggil untuk memproses proses login klien. Setelah selesai memproses command, buffer direset menggunakan memset() untuk persiapan menerima data selanjutnya dari klien. Ketika klien menutup koneksi, handle_client menutup socket yang terkait, membebaskan memori yang dialokasikan untuk struktur data klien (client_data), dan mengembalikan nilai NULL karena tipe fungsi ini adalah void *
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+void *handle_client(void *arg) {
+    client_data *client = (client_data *)arg;
+    char buffer[MAX_BUFFER];
+    memset(buffer, 0, MAX_BUFFER);
+
+    while (recv(client->socket_fd, buffer, MAX_BUFFER, 0) > 0) {
+        char *command = strtok(buffer, " ");
+        if (strcmp(command, "REGISTER") == 0) {
+            handle_register(client, buffer);
+        } else if (strcmp(command, "LOGIN") == 0) {
+            handle_login(client, buffer);
+        }
+        memset(buffer, 0, MAX_BUFFER);
+    }
+    close(client->socket_fd);
+    free(client);
+    return NULL;
+}
+```
+</details>
 
 ## Fungsi Register di Server
 
