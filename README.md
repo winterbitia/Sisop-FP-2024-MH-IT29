@@ -21,8 +21,147 @@ ini gambar
 # Authentikasi
 
 ## Login/Register (Client)
+Langkah pertama dalam proses autentikasi adalah menghubungkan client ke server. Ini dilakukan dengan menggunakan fungsi connect_server yang membuat socket dan menghubungkannya ke alamat IP dan port server.
 
-jelasin alur discorit mulai dari connect server, command yang harus dimasukin, cara ngurus buffer, dan pengiriman register/login ke server
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+// Server connect function
+void connect_server() {
+    // Connect to server
+    struct sockaddr_in address;
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    address.sin_family = AF_INET;
+    address.sin_port = htons(PORT);
+
+    if (inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) <= 0) {
+        perror("invalid address");
+        exit(EXIT_FAILURE);
+    }
+
+    if (connect(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+        perror("connection failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // DEBUGGING
+    printf("Connected to server\n");
+}
+```
+</details>
+
+### Pengiriman Register/Login ke Server
+Setelah koneksi berhasil, client dapat mengirim command untuk register atau login. Command ini dikirim dalam bentuk string yang diformat sesuai kebutuhan server, kemudian dikirim melalui socket yang telah dibuat.
+
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+// Main function
+int main(int argc, char *argv[]) {
+    if (argc < 5) {
+        printf("Usage: ./discorit [REGISTER/LOGIN] <username> -p <password>\n(not enough arguments)");
+        return 1;
+    } 
+    if (strcmp(argv[1], "REGISTER") != 0 && strcmp(argv[1], "LOGIN") != 0) {
+        printf("Usage: ./discorit [REGISTER/LOGIN] <username> -p <password>\n(invalid command)");
+        return 1;
+    } 
+    if (strcmp(argv[3], "-p") != 0) {
+        printf("Usage: ./discorit REGISTER <username> -p <password>\n(missing -p flag)");
+        return 1;
+    }
+
+    // Connect to server
+    connect_server();
+
+    // Prepare buffer
+    char buffer[MAX_BUFFER];
+    memset(buffer, 0, MAX_BUFFER);
+    strcpy(username, argv[2]);
+    strcpy(password, argv[4]);
+
+    // Register user
+    if (strcmp(argv[1], "REGISTER") == 0) {
+        sprintf(buffer, "REGISTER %s %s", username, password);
+        handle_account(buffer);
+        close(server_fd);
+        return 0;
+    }
+
+    // Login user
+    if (strcmp(argv[1], "LOGIN") == 0) {
+        sprintf(buffer, "LOGIN %s %s", username, password);
+        if (handle_account(buffer) == 1)
+        while(1){
+            if (strlen(room) > 0) 
+                printf("[%s/%s/%s] ", username, channel, room);
+            else if (strlen(channel) > 0) 
+                printf("[%s/%s] ", username, channel);
+            else 
+                printf("[%s] ", username);
+
+            memset(buffer, 0, MAX_BUFFER);
+            fgets(buffer, MAX_BUFFER, stdin);
+            buffer[strcspn(buffer, "\n")] = '\0';
+
+            int res = handle_command(buffer);
+            if (res == 2)
+                return 0;
+            if (res == 1)
+                key_request(buffer);
+        }
+    }
+}
+```
+</details>
+
+### Pengelolaan Buffer dan Pengiriman Register/Login ke Server
+Fungsi handle_account digunakan untuk mengirim command register atau login ke server, kemudian menerima dan menangani respon dari server.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+// Account handler function
+int handle_account(const char *buffer) {
+    if (buffer == NULL) {
+        perror("buffer is empty");
+        exit(EXIT_FAILURE);
+    }
+
+    if (send(server_fd, buffer, strlen(buffer), 0) < 0) {
+        perror("send failed");
+        exit(EXIT_FAILURE);
+    }
+
+    char response[MAX_BUFFER];
+    memset(response, 0, MAX_BUFFER);
+    if (recv(server_fd, response, MAX_BUFFER, 0) < 0) {
+        perror("recv failed");
+        exit(EXIT_FAILURE);
+    }
+
+    char *type = strtok(response, ",");
+    char *message = strtok(NULL, ",");
+
+    if (strcmp(type, "MSG") == 0) {
+        printf("%s\n", message);
+        return 0;
+    } else if (strcmp(type, "LOGIN") == 0) {
+        printf("%s\n", message);
+        return 1;
+    }
+}
+```
+</details>
 
 ## Login/Register (Server)
 
