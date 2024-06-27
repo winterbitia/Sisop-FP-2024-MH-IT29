@@ -334,8 +334,148 @@ void *handle_client(void *arg) {
 </details>
 
 ## Fungsi Register di Server
+Fungsi register_user bertanggung jawab untuk menangani pendaftaran user baru. Fungsi ini memastikan bahwa username unik dan menyimpan data user yang baru terdaftar di users.csv. User pertama yang mendaftar akan diberi user ID 1 (root).
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jangan lupa jelasin root itu user id 1 yang pertama daftar, juga jelasin username harus unique dan fitur password encrypt, disimpen di user.csv
+```c
+void register_user(char *username, char *password, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER * 2];
+
+    // Check if username has comma or is called USER
+    if (strchr(username, ',') != NULL || strcmp(username, "USER") == 0) {
+        // DEBUGGING
+        printf("[REGISTER] Error: Username not allowed\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not allowed");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open file
+    FILE *file = fopen(users_csv, "a+");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[REGISTER] Error: Unable to open file\n");
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id and username
+    int id = 0; char namecheck[MAX_BUFFER];
+    while (fscanf(file, "%d,%[^,],%*s", &id, namecheck) == 2) {
+        // DEBUGGING
+        printf("[REGISTER] id: %d, name: %s\n", id, namecheck);
+        // sleep(1);
+
+        // Fail if username already exists
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[REGISTER] Error: Username already exists\n");
+
+            // Close file
+            fclose(file);
+
+            // Send response to client
+            sprintf(response, "MSG,Error: Username %s already exists", username);
+            send(client_fd, response, strlen(response), 0);
+            return;
+        }
+    }
+
+    // Hash password
+    char hash[MAX_BUFFER];
+    strcpy(hash, crypt(password, HASHCODE));
+
+    // Set role to USER by default
+    char role[8];
+    if (id == 0) strcpy(role, "ROOT");
+    else strcpy(role, "USER");
+
+    // DEBUGGING
+    printf("[REGISTER] id: %d, name: %s, pass: %s, role: %s\n", id+1, username, hash, role);
+    
+    // Write to file
+    fprintf(file, "%d,%s,%s,%s\n", id+1, username, hash, role);
+    fclose(file);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: User %s registered", username);
+    send(client_fd, response, strlen(response), 0);
+}
+```
+</details>
+
+User pertama yang mendaftar akan diberi user ID 1 dan dianggap sebagai root. Fungsi get_next_user_id akan mengembalikan user ID berikutnya berdasarkan ID tertinggi yang ada di users.csv.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+int get_next_user_id() {
+    FILE *file = fopen(users_csv, "r");
+    int max_id = 0;
+    char line[MAX_BUFFER];
+    while (fgets(line, MAX_BUFFER, file)) {
+        int user_id = atoi(strtok(line, ","));
+        if (user_id > max_id) {
+            max_id = user_id;
+        }
+    }
+    fclose(file);
+    return max_id + 1;
+}
+```
+</details>
+
+Fungsi username_exists digunakan untuk memeriksa apakah username sudah ada di users.csv. Jika sudah ada, maka user tidak bisa mendaftar dengan username tersebut.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+bool username_exists(char *username) {
+    FILE *file = fopen(users_csv, "r");
+    char line[MAX_BUFFER];
+    while (fgets(line, MAX_BUFFER, file)) {
+        char *token = strtok(line, ",");
+        strtok(NULL, ","); // Skip user ID
+        char *existing_username = strtok(NULL, ",");
+        if (strcmp(existing_username, username) == 0) {
+            fclose(file);
+            return true;
+        }
+    }
+    fclose(file);
+    return false;
+}
+```
+</details>
+
+Password yang diberikan oleh user akan dienkripsi sebelum disimpan di users.csv. Fungsi encrypt_password melakukan enkripsi sederhana dengan menggeser setiap karakter dalam password.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+void encrypt_password(char *password, char *encrypted_password) {
+    for (int i = 0; i < strlen(password); i++) {
+        encrypted_password[i] = password[i] + 1;
+    }
+    encrypted_password[strlen(password)] = '\0';
+}
+```
+</details>
 
 ## Fungsi Login di Server
 
