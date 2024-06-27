@@ -740,7 +740,749 @@ int handle_command(const char *buffer) {
 
 ### Server
 
-jelasin inti apa yg dilakukan handle_input setelah handle_client berhasil login
+Setelah berhasil login, handle_input akan menunggu perintah dari client dengan terus mendengarkan data yang dikirimkan melalui socket. Perintah yang diterima akan diproses berdasarkan jenisnya, seperti "EXIT" untuk keluar, "SEE" untuk melihat informasi tertentu, "CREATE" untuk membuat channel atau room baru, dan lain-lain. Sebelum memproses perintah, fungsi ini akan memeriksa keberadaan dan status user untuk memastikan bahwa user tidak di-ban. Jika user di-ban, maka akan mengirimkan pesan error ke client dan menunggu perintah berikutnya. Setiap perintah yang valid akan memanggil fungsi terkait untuk menjalankan aksi yang diminta, seperti create_channel untuk perintah "CREATE CHANNEL" atau send_chat untuk perintah "CHAT". Ini memastikan bahwa setiap interaksi client dengan server ditangani dengan benar sesuai dengan perintah yang diberikan.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//==============//
+// HANDLE INPUT //
+//==============//
+
+void handle_input(void *arg){
+    client_data *client = (client_data *)arg;
+    int client_fd = client->socket_fd;
+
+    char buffer[MAX_BUFFER];
+    char response[MAX_BUFFER*2];
+
+    while(1){
+        // DEBUGGING
+        printf("[%s] Waiting for command...\n", client->username);
+
+        // Clear buffer
+        memset(buffer, 0, MAX_BUFFER);
+
+        // Receive data from client
+        if (recv(client_fd, buffer, MAX_BUFFER, 0) < 0){
+            perror("recv failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // Check if user still exists
+        if (!check_user(client)){
+            // DEBUGGING
+            printf("[%s] User does not exist\n", client->username);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER * 2);
+            sprintf(response, "QUIT,Error: User does not exist");
+            send(client_fd, response, strlen(response), 0);
+
+            // Close client connection
+            close(client_fd);
+            free(client);
+            pthread_exit(NULL);
+            return;
+        }
+
+        // Check if user is banned
+        int ban = check_ban(client);
+        if (ban == 1){
+            // DEBUGGING
+            printf("[%s] User is banned\n", client->username);
+
+            // Update client channel and room
+            memset(client->channel, 0, 100);
+            memset(client->room, 0, 100);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER * 2);
+            sprintf(response, "EXIT,Error: User is banned,CHANNEL");
+            send(client_fd, response, strlen(response), 0);
+
+            // Accept next command
+            continue;
+        } else if (ban < 0){
+            // DEBUGGING
+            printf("[%s] Error: Unable to check ban\n", client->username);
+
+            // Update client channel and room
+            memset(client->channel, 0, 100);
+            memset(client->room, 0, 100);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER * 2);
+            sprintf(response, "EXIT,Error: Unable to check ban,CHANNEL");
+            send(client_fd, response, strlen(response), 0);
+
+            // Accept next command
+            continue;
+        }
+
+        // Prepare parse data from client
+        char *command = strtok(buffer, " ");
+
+        // Start command handling
+        if (strcmp(command, "EXIT") == 0){
+            // DEBUGGING
+            printf("[%s][EXIT]\n", client->username);
+
+            // Call exit user function
+            exit_user(client);
+
+ } else if (strcmp(command, "SEE") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid see (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing see type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // See types
+            if (strcmp(type, "USER") == 0){
+                // Call print user function
+                see_user(client);
+            } else if (strcmp(type, "CHAT") == 0){
+                // Call print chat function
+                see_chat(client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: See type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: See type not found");
+                send(client_fd, response, strlen(response), 0);
+            }
+
+ } else if (strcmp(command, "CREATE") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid create (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing create type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Create types
+            if (strcmp(type, "CHANNEL") == 0){
+                // Parse data from client
+                char *channel = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *key = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (channel == NULL || key == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing name/key)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing channel name/key)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                } else if (strcmp(flag, "-k") != 0){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid flag statement\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing -k flag)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Channel: %s, Key: %s\n", client->username, channel, key);
+
+                // Call create channel function
+                create_channel(channel, key, client);
+            } else if (strcmp(type, "ROOM") == 0){
+                // Parse data from client
+                char *room = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (room == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing room name)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing room name)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Room: %s\n", client->username, room);
+
+                // Call create room function
+                create_room(room, client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: Create type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Create type not found");
+                send(client_fd, response, strlen(response), 0);
+            }
+
+ } else if (strcmp(command, "LIST") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid listing (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing list type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Listing types
+            if (strcmp(type, "CHANNEL") == 0){
+                // Call list channels function
+                list_channel(client);
+            } else if (strcmp(type, "ROOM") == 0){
+                // Call list room function
+                list_room(client);
+            } else if (strcmp(type, "USER") == 0){
+                // Call list user function
+                list_user(client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: List type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: List type not found");
+                send(client_fd, response, strlen(response), 0);
+            }
+
+ } else if (strcmp(command, "EDIT") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid edit (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing edit type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Edit types
+            if (strcmp(type, "WHERE") == 0){
+                char *target = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (target == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing target or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Target: %s, New: %s\n", client->username, flag, target, new);
+
+                // Branch flag types
+                if (strcmp(flag, "-u") == 0){
+                    // Call edit username function
+                    edit_username(target, new, client);
+                } else if (strcmp(flag, "-p") == 0){
+                    // Call edit password function
+                    edit_password(target, new, client);
+                } else {
+                    // DEBUGGING
+                    printf("[%s] Error: Flag type not found\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Flag type not found");
+                    send(client_fd, response, strlen(response), 0);
+                }
+            } else if (strcmp(type, "CHAT") == 0) {
+                // Parse data from client
+                char *target = strtok(NULL, " ");
+                char *message = strtok(NULL, "\n");
+
+                // Check if command is valid
+                if (target == NULL || message == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target/message)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing target or message)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if message is correctly encased in quotes
+                if (message[0] != '"' || message[strlen(message)-1] != '"'){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid message (missing quotes)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing quotes)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Target: %s, Message: %s\n", client->username, target, message);
+
+                // call edit chat function
+                edit_chat(atoi(target), message, client);
+            } else if (strcmp(type, "PROFILE") == 0){
+                // Parse data from client
+                char *target = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (target == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing target or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Target: %s, New: %s\n", client->username, flag, target, new);
+
+                // Branch flag types
+                if (strcmp(flag, "-u") == 0){
+                    // Call edit username function
+                    edit_username(client->username, new, client);
+                } else if (strcmp(flag, "-p") == 0){
+                    // Call edit password function
+                    edit_password(client->username, new, client);
+                } else {
+                    // DEBUGGING
+                    printf("[%s] Error: Flag type not found\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Flag type not found");
+                    send(client_fd, response, strlen(response), 0);
+                }
+
+            } else if (strcmp(type, "CHANNEL") == 0){
+                // Parse data from client
+                char *changed = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (changed == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing changed/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing changed or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if flag is valid
+                if (strcmp(flag, "TO") != 0){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing flag)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing flag)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Changed: %s, New: %s\n", client->username, flag, changed, new);
+
+                // Call edit channel function
+                edit_channel(changed, new, client);
+
+            } else if (strcmp(type, "ROOM") == 0){
+                // Parse data from client
+                char *changed = strtok(NULL, " ");
+                char *flag = strtok(NULL, " ");
+                char *new = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (changed == NULL || new == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing changed/new)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing changed or new)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if flag is valid
+                if (strcmp(flag, "TO") != 0){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing flag)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing flag)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Flag:%s Changed: %s, New: %s\n", client->username, flag, changed, new);
+
+                // Call edit room function
+                edit_room(changed, new, client);
+                
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: Edit type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Edit type not found");
+                send(client_fd, response, strlen(response), 0);
+            
+            }
+
+ } else if (strcmp(command, "DEL") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid delete (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing delete type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Delete types
+            if (strcmp(type, "CHAT") == 0){
+                // Parse data from client
+                char *target = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (target == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing target)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing target)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Target: %s\n", client->username, target);
+
+                // Call delete chat function
+                del_chat(atoi(target), client);
+
+            } else if (strcmp(type, "CHANNEL") == 0){
+                // Parse data from client
+                char *channel = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (channel == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing channel)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing channel)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Channel: %s\n", client->username, channel);
+
+                // Call delete channel function
+                delete_channel(channel, client);
+
+            } else if (strcmp(type, "ROOM") == 0){
+                // Parse data from client
+                char *room = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (room == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid command (missing room)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing room)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // Check if ALL is used
+                if (strcmp(room, "ALL") == 0){
+                    // DEBUGGING
+                    printf("[%s] Room: %s\n", client->username, room);
+
+                    // Call delete all room function
+                    delete_all_rooms(client);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Room: %s\n", client->username, room);
+
+                // Call delete room function
+                delete_room(room, client);
+
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: Delete type not found\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Delete type not found");
+                send(client_fd, response, strlen(response), 0);
+            }
+
+ } else if (strcmp(command, "JOIN") == 0){
+            // Parse data from client
+            char *target = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (target == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid target\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing target)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, target: %s\n", client->username, command, target);
+
+            // Join channel if user is not in a channel
+            if (strlen(client->channel) == 0){
+                // Call join channel function
+                join_channel(target, client);
+            } else if (strlen(client->room) == 0){
+                // Call join room function
+                join_room(target, client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Error: User is already in a room\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: User is already in a channel");
+                send(client_fd, response, strlen(response), 0);
+            }
+
+ } else if (strcmp(command, "CHAT") == 0){
+            // Parse data from client
+            char *message = strtok(NULL, "\n");
+
+            // Check if command is valid
+            if (message == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid message (missing message)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing message)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // Check if message is correctly encased in quotes
+            if (message[0] != '"' || message[strlen(message)-1] != '"'){
+                // DEBUGGING
+                printf("[%s] Error: Invalid message (missing quotes)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing quotes)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, message: %s\n", client->username, command, message);
+
+            // Call send chat function
+            send_chat(message, client);
+
+ } else if (strcmp(command, "REMOVE") == 0){
+            // Parse data from client
+            char *type = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (type == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid remove (missing type)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing remove type)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, type);
+
+            // Check if type is USER
+            if (strcmp(type, "USER") == 0){
+                // Parse data from client
+                char *target = strtok(NULL, " ");
+
+                // Check if command is valid
+                if (target == NULL){
+                    // DEBUGGING
+                    printf("[%s] Error: Invalid remove (missing target)\n", client->username);
+
+                    // Send response to client
+                    memset(response, 0, MAX_BUFFER * 2);
+                    sprintf(response, "MSG,Error: Invalid command (missing remove target)");
+                    send(client_fd, response, strlen(response), 0);
+                    continue;
+                }
+
+                // DEBUGGING
+                printf("[%s] Target: %s\n", client->username, type);
+
+                // Call kick user function
+                kick_user(target, client);
+            } else {
+                // DEBUGGING
+                printf("[%s] Target: %s\n", client->username, type);
+
+                // Call remove user function
+                remove_user(type, client);
+            }
+
+ } else if (strcmp(command, "BAN") == 0){
+            // Parse data from client
+            char *target = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (target == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid ban (missing target)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing ban target)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, target);
+
+            // Call ban user function
+            ban_user(target, client);
+
+ } else if (strcmp(command, "UNBAN") == 0){
+            // Parse data from client
+            char *target = strtok(NULL, " ");
+
+            // Check if command is valid
+            if (target == NULL){
+                // DEBUGGING
+                printf("[%s] Error: Invalid unban (missing target)\n", client->username);
+
+                // Send response to client
+                memset(response, 0, MAX_BUFFER * 2);
+                sprintf(response, "MSG,Error: Invalid command (missing unban target)");
+                send(client_fd, response, strlen(response), 0);
+                continue;
+            }
+
+            // DEBUGGING
+            printf("[%s] Command: %s, type: %s\n", client->username, command, target);
+
+            // Call unban user function
+            unban_user(target, client);
+
+        } else {
+            // DEBUGGING
+            printf("[%s] Error: Command not found\n", client->username);
+
+            // Send response to client
+            memset(response, 0, MAX_BUFFER * 2);
+            sprintf(response, "MSG,Error: Command not found");
+            send(client_fd, response, strlen(response), 0);
+        }
+    }
+}
+```
+</details>
 
 # Penggunaan DiscorIT
 
