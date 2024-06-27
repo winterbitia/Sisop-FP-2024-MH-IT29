@@ -168,120 +168,445 @@ Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan
 
 seperti biasa, tapi di akhir ada remove directory
 
-#### Bonus Case 1
+### Bonus Case 1: 
 
-Ketika seorang admin/root melakukan delete pada channel yang sedang digunakan pada saat itu, maka secara otomatis akan melakukan update pengosongan nama channel (dan room) pada client data dan mengirim pesan pada client untuk perubahan channel.
+**Admin Menghapus Room yang Sedang Digunakan**
 
-#### Bonus Case 2
+**Penjelasan**: Ketika seorang admin atau root menghapus room yang sedang digunakan oleh klien, maka server harus mengirim pesan kepada klien yang berada di dalam room tersebut untuk memperbarui status room mereka menjadi kosong.
 
-Ketika seorang admin/root melakukan delete pada channel yang sedang digunakan oleh user lain, untuk menghindari konflik command, maka user yang sedang berada di dalam nama channel lama akan keluar dari channel secara aman sebelum command berikutnya terkirim.
+**Alur**:
+1. **Admin menghapus room**: Admin mengirim perintah ke server untuk menghapus room.
+2. **Server memproses penghapusan room**:
+   - Server memeriksa apakah ada klien yang menggunakan room tersebut.
+   - Jika ada, server mengirim pesan kepada klien untuk mengosongkan variabel `room`.
+3. **Klien menerima pesan dan memperbarui status room**:
+   - Klien menerima pesan dari server.
+   - Klien mengosongkan variabel `room` dan menampilkan pesan kepada pengguna tentang perubahan status room.
 
-### Create Room
+**Kode**:
+```c
+// Pseudocode for handling room deletion in server
+void handle_delete_room(const char *room_name) {
+    if (strcmp(room_name, "admin") == 0) {
+        printf("Cannot delete 'admin' room.\n");
+        return;
+    }
 
-jelasin alurnya bikin folder baru
+    // Find all clients in the room
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        if (clients[i] != NULL && strcmp(clients[i]->room, room_name) == 0) {
+            // Send message to client to leave the room
+            send(clients[i]->sockfd, "ROOM DELETED,Your room has been deleted by admin", strlen("ROOM DELETED,Your room has been deleted by admin"), 0);
+            // Clear room name on client
+            memset(clients[i]->room, 0, sizeof(clients[i]->room));
+        }
+    }
 
-#### Bonus Case
+    // Proceed with room deletion on server
+    // Code to delete the room from server records
+}
+```
 
-Karena dalam setiap channel terdapat sebuah folder "admin" yang berisi auth.csv dan user.log, maka server melarang pembuatan Room atas nama "admin".
+### Bonus Case 2: 
 
-### Edit Room
+**Mencegah Penghapusan Room "admin"**
 
-intinya rename directory
+**Penjelasan**: Server melarang penghapusan room dengan nama "admin" karena di dalam setiap channel terdapat folder "admin" yang berisi `auth.csv` dan `user.log`.
 
-#### Bonus Case 1
+**Alur**:
+1. **Periksa room yang akan dihapus**: Server memeriksa nama room yang akan dihapus.
+2. **Tolak permintaan jika room adalah "admin"**: Jika nama room adalah "admin", server menolak permintaan penghapusan.
 
-Ketika seorang admin/root melakukan edit pada nama room yang sedang digunakan pada saat itu, maka secara otomatis akan melakukan update pada client data dan mengirim pesan pada client atas perubahannya.
+**Kode**:
+```c
+// Part of the delete room function in server
+void handle_delete_room(const char *room_name) {
+    if (strcmp(room_name, "admin") == 0) {
+        printf("Cannot delete 'admin' room.\n");
+        return;
+    }
 
-#### Bonus Case 2
-
-Karena dalam setiap channel terdapat sebuah folder "admin" yang berisi auth.csv dan user.log, maka server melarang edit Room dengan atau menjadi nama "admin".
-
-### Delete Room
-
-intinya remove directory dan gaboleh admin
-
-#### Bonus Case 1
-
-Ketika seorang admin/root melakukan delete pada room yang sedang digunakan pada saat itu, maka secara otomatis akan melakukan update pengosongan nama room pada client data dan mengirim pesan pada client untuk perubahan room.
-
-#### Bonus Case 2
-
-Karena dalam setiap channel terdapat sebuah folder "admin" yang berisi auth.csv dan user.log, maka server melarang delete Room atas nama "admin".
+    // Proceed with room deletion on server
+    // Code to delete the room from server records
+}
+```
 
 ### Delete Room All
+**Penjelasan**: Menghapus semua room kecuali room "admin".
 
-intinya sama cuman di loop sampe semua folder selain admin hilang
+**Alur**:
+1. **Loop melalui semua room**: Server melakukan loop melalui semua room yang ada.
+2. **Hapus room kecuali "admin"**: Jika room bukan "admin", server menghapus room tersebut.
 
-## Ban
+**Kode**:
+```c
+// Pseudocode for deleting all rooms except "admin"
+void handle_delete_all_rooms() {
+    for (int i = 0; i < total_rooms; ++i) {
+        if (strcmp(rooms[i], "admin") != 0) {
+            handle_delete_room(rooms[i]);
+        }
+    }
+}
+```
 
-### Check Ban
+### Ban
+#### Check Ban
+**Penjelasan**: Memeriksa apakah user diban atau tidak. Proses ini juga digunakan untuk memeriksa apakah channel masih ada atau tidak.
 
-jelasin alur ngecek seseorang diban atau gk, ini juga secara gk langsung dipake buat ngecek kalo sebuah channel itu masi ada atau gk
+**Alur**:
+1. **Pemeriksaan status ban**: Server memeriksa status ban user di database atau file yang relevan.
+2. **Kirim pesan status**: Server mengirim pesan ke user atau admin terkait status ban.
 
-### Ban User
+**Kode**:
+```c
+// Pseudocode for checking if a user is banned
+int is_user_banned(const char *username) {
+    // Code to check if user is banned in database or file
+    // Return 1 if banned, 0 otherwise
+}
 
-jelasin alur ngubah ban
+// Example usage in server function
+void handle_check_ban(const char *username) {
+    if (is_user_banned(username)) {
+        printf("%s is banned.\n", username);
+    } else {
+        printf("%s is not banned.\n", username);
+    }
+}
+```
 
-### Unban User
+#### Ban User
+**Penjelasan**: Mengubah status user menjadi banned.
 
-sama kaya ban tapi ubah jd user
+**Alur**:
+1. **Server menerima permintaan ban**: Admin mengirim permintaan untuk memban user.
+2. **Perbarui status user**: Server memperbarui status user menjadi banned di database atau file yang relevan.
+3. **Kirim pesan ke user dan admin**: Server mengirim pesan konfirmasi ke admin dan pesan pemberitahuan ke user yang diban.
 
-### Remove User from Channel
+**Kode**:
+```c
+// Pseudocode for banning a user
+void ban_user(const char *username) {
+    // Code to update user status to banned in database or file
+    printf("%s has been banned.\n", username);
+}
 
-sama kaya ban tapi di delete dari auth.csv
+// Example usage in server function
+void handle_ban_user(const char *username) {
+    ban_user(username);
+    send_user_message(username, "You have been banned.");
+    send_admin_message("User has been banned.");
+}
+```
 
-## User
+#### Unban User
+**Penjelasan**: Mengubah status user menjadi unbanned.
 
-### See User
+**Alur**:
+1. **Server menerima permintaan unban**: Admin mengirim permintaan untuk meng-unban user.
+2. **Perbarui status user**: Server memperbarui status user menjadi unbanned di database atau file yang relevan.
+3. **Kirim pesan ke user dan admin**: Server mengirim pesan konfirmasi ke admin dan pesan pemberitahuan ke user yang di-unban.
 
-jelasin ini dipake buat ngecek data pribadi sekaligus ngecek variabel pada saat testing
+**Kode**:
+```c
+// Pseudocode for unbanning a user
+void unban_user(const char *username) {
+    // Code to update user status to unbanned in database or file
+    printf("%s has been unbanned.\n", username);
+}
 
-### Edit Profile Self (Username)
+// Example usage in server function
+void handle_unban_user(const char *username) {
+    unban_user(username);
+    send_user_message(username, "You have been unbanned.");
+    send_admin_message("User has been unbanned.");
+}
+```
 
-literally persis edit user tapi targetnya diri sendiri secara default
+#### Remove User from Channel
+**Penjelasan**: Menghapus user dari channel dengan menghapus entri dari file `auth.csv`.
 
-### Edit Profile Self (Password)
+**Alur**:
+1. **Server menerima permintaan penghapusan user**: Admin mengirim permintaan untuk menghapus user dari channel.
+2. **Hapus entri user dari `auth.csv`**: Server menghapus entri user dari file `auth.csv` yang berisi daftar user yang memiliki akses ke channel tersebut.
+3. **Kirim pesan ke user dan admin**: Server mengirim pesan konfirmasi ke admin dan pesan pemberitahuan ke user yang dihapus.
 
-sama
+**Kode**:
+```c
+// Pseudocode for removing a user from a channel
+void remove_user_from_channel(const char *channel, const char *username) {
+    // Code to remove user entry from auth.csv file
+    printf("%s has been removed from %s.\n", username, channel);
+}
 
-## Exit
+// Example usage in server function
+void handle_remove_user(const char *channel, const char *username) {
+    remove_user_from_channel(channel, username);
+    send_user_message(username, "You have been removed from the channel.");
+    send_admin_message("User has been removed from the channel.");
+}
+```
 
-jelasin kalo exit ada 3 tahap
+### User
+#### See User
+**Penjelasan**: Melihat data pribadi user dan variabel yang relevan saat testing.
 
-### Exit Room
+**Alur**:
+1. **User mengirim permintaan**: User mengirim permintaan untuk melihat data pribadi.
+2. **Server mengirim data pribadi**: Server mengirim data pribadi user yang bersangkutan.
 
-jelasin
+**Kode**:
+```c
+// Pseudocode for seeing user data
+void see_user_data(const char *username) {
+    // Code to retrieve and send user data to the client
+    printf("User data for %s sent.\n", username);
+}
 
-### Exit Channel
+// Example usage in server function
+void handle_see_user_data(const char *username) {
+    see_user_data(username);
+}
+```
 
-jelasin
+#### Edit Profile Self (Username)
+**Penjelasan**: Mengubah username sendiri.
 
-### Exit Discorit
+**Alur**:
+1. **User mengirim permintaan perubahan username**: User mengirim permintaan untuk mengubah username.
+2. **Server memperbarui username**: Server memperbarui username di database atau file yang relevan.
 
-jelasin
+**Kode**:
+```c
+// Pseudocode for editing own username
+void edit_own_username(const char *old_username, const char *new_username) {
+    // Code to update username in database or file
+    printf("%s has changed their username to %s.\n", old_username, new_username);
+}
 
-## User Log
+// Example usage in server function
+void handle_edit_own_username(const char *old_username, const char *new_username) {
+    edit_own_username(old_username, new_username);
+}
+```
 
-jelasin di userlog apa aja yg dicatet dan kalo yg dicatet itu terhubung sama channel userlog itu berada
+#### Edit Profile Self (Password)
+**Penjelasan**: Mengubah password sendiri.
 
-# Monitor
+**Alur**:
+1. **User mengirim permintaan perubahan password**: User mengirim permintaan untuk mengubah password.
+2. **Server memperbarui password**: Server memperbarui password di database atau file yang relevan.
 
-jelasin apa itu monitor
+**Kode
 
-## Autentikasi
+**:
+```c
+// Pseudocode for editing own password
+void edit_own_password(const char *username, const char *new_password) {
+    // Code to update password in database or file
+    printf("%s has changed their password.\n", username);
+}
 
-## Pemilihan Channel dan Room
+// Example usage in server function
+void handle_edit_own_password(const char *username, const char *new_password) {
+    edit_own_password(username, new_password);
+}
+```
 
-jelasin ttg handling command itu dicek dulu antara 
-EXIT atau gk, terus sebut apa yg terjadi setelah input -channel dan -room
+### Exit
+#### Exit Room
+**Penjelasan**: User keluar dari room.
 
-## Monitor Loop
+**Alur**:
+1. **User mengirim perintah keluar dari room**: User mengirim perintah untuk keluar dari room.
+2. **Server memproses perintah**: Server memproses permintaan ini dan mengosongkan variabel room di klien.
 
-jelasin cara kerja loop monitor
+**Kode**:
+```c
+// Pseudocode for exiting a room
+void exit_room(const char *username) {
+    // Code to clear room variable for the user
+    printf("%s has exited the room.\n", username);
+}
 
-## Exiting
+// Example usage in server function
+void handle_exit_room(const char *username) {
+    exit_room(username);
+}
+```
 
-jelasin kenapa ada strstr dan strcmp buat perbedaan jenis exit (karena refresh di monitor loop bikin tulisan hilang)
+#### Exit Channel
+**Penjelasan**: User keluar dari channel.
+
+**Alur**:
+1. **User mengirim perintah keluar dari channel**: User mengirim perintah untuk keluar dari channel.
+2. **Server memproses perintah**: Server memproses permintaan ini dan mengosongkan variabel channel di klien.
+
+**Kode**:
+```c
+// Pseudocode for exiting a channel
+void exit_channel(const char *username) {
+    // Code to clear channel variable for the user
+    printf("%s has exited the channel.\n", username);
+}
+
+// Example usage in server function
+void handle_exit_channel(const char *username) {
+    exit_channel(username);
+}
+```
+
+#### Exit Discorit
+**Penjelasan**: User keluar dari aplikasi Discorit.
+
+**Alur**:
+1. **User mengirim perintah keluar dari aplikasi**: User mengirim perintah untuk keluar dari aplikasi.
+2. **Server memproses perintah**: Server memproses permintaan ini dan memutuskan koneksi klien.
+
+**Kode**:
+```c
+// Pseudocode for exiting the application
+void exit_discorit(const char *username) {
+    // Code to handle user exit from the application
+    printf("%s has exited Discorit.\n", username);
+}
+
+// Example usage in server function
+void handle_exit_discorit(const char *username) {
+    exit_discorit(username);
+}
+```
+
+### User Log
+**Penjelasan**: Mencatat berbagai aktivitas user seperti login, logout, penghapusan room, dll., di `user.log`.
+
+**Alur**:
+1. **Aktivitas user dicatat**: Server mencatat aktivitas user di file `user.log`.
+2. **Catatan terhubung dengan channel**: Catatan ini bisa dihubungkan dengan channel yang relevan.
+
+**Kode**:
+```c
+// Pseudocode for logging user activity
+void log_user_activity(const char *username, const char *activity) {
+    // Code to write user activity to user.log
+    printf("Logged activity for %s: %s\n", username, activity);
+}
+
+// Example usage in server function
+void handle_user_activity(const char *username, const char *activity) {
+    log_user_activity(username, activity);
+}
+```
+
+### Monitor
+**Penjelasan**: Monitor adalah fitur yang memperbarui tampilan chat setiap 5 detik jika user berada dalam room.
+
+**Alur**:
+1. **Monitor loop**: Server memperbarui tampilan chat setiap 5 detik.
+2. **Input dari user**: Jika ada input dari user, thread baru dibuat untuk menangani input tersebut.
+
+**Kode**:
+```c
+// Pseudocode for monitor loop
+void monitor_loop() {
+    while (1) {
+        // Code to update chat display every 5 seconds
+        sleep(5);
+        // Code to handle user input in a new thread
+    }
+}
+
+// Example usage in server function
+void handle_monitor() {
+    pthread_t monitor_thread;
+    pthread_create(&monitor_thread, NULL, monitor_loop, NULL);
+}
+```
+
+### Autentikasi
+#### Pemilihan Channel dan Room
+**Penjelasan**: Menangani perintah dengan memeriksa apakah perintah tersebut adalah "EXIT" atau tidak, kemudian memproses input channel dan room.
+
+**Alur**:
+1. **Periksa perintah EXIT**: Server memeriksa apakah perintah yang diberikan oleh user adalah "EXIT".
+2. **Proses input channel dan room**: Jika bukan perintah "EXIT", server memproses input untuk memilih channel dan room.
+
+**Kode**:
+```c
+// Pseudocode for handling command
+void handle_command(const char *command) {
+    if (strcmp(command, "EXIT") == 0) {
+        // Code to handle exit command
+        return;
+    }
+
+    // Code to handle channel and room selection
+    if (strstr(command, "-channel") != NULL) {
+        // Code to handle channel selection
+    }
+
+    if (strstr(command, "-room") != NULL) {
+        // Code to handle room selection
+    }
+}
+```
+
+### Monitor Loop
+**Penjelasan**: Cara kerja loop monitor yang memperbarui tampilan chat setiap 5 detik jika user berada dalam room.
+
+**Alur**:
+1. **Loop monitor**: Loop monitor memperbarui tampilan chat setiap 5 detik.
+2. **Thread baru untuk input user**: Jika ada input dari user, thread baru dibuat untuk menangani input tersebut.
+
+**Kode**:
+```c
+// Pseudocode for monitor loop
+void monitor_loop() {
+    while (1) {
+        // Code to update chat display every 5 seconds
+        sleep(5);
+        // Code to handle user input in a new thread
+    }
+}
+
+// Example usage in server function
+void handle_monitor() {
+    pthread_t monitor_thread;
+    pthread_create(&monitor_thread, NULL, monitor_loop, NULL);
+}
+```
+
+### Exiting
+**Penjelasan**: Menggunakan `strstr` dan `strcmp` untuk membedakan jenis exit karena tampilan di monitor loop diperbarui setiap 5 detik, sehingga jenis exit perlu ditangani secara tepat untuk memastikan keluarnya user tercatat dengan benar.
+
+**Alur**:
+1. **Periksa jenis exit**: Menggunakan `strstr` dan `strcmp` untuk memeriksa jenis exit.
+2. **Proses exit sesuai jenisnya**: Server memproses exit sesuai dengan jenis exit yang terdeteksi.
+
+**Kode**:
+```c
+// Pseudocode for exiting
+void handle_exit(const char *command) {
+    if (strcmp(command, "EXIT ROOM") == 0) {
+        // Code to handle exit room
+    } else if (strcmp(command, "EXIT CHANNEL") == 0) {
+        // Code to handle exit channel
+    } else if (strcmp(command, "EXIT DISCORIT") == 0) {
+        // Code to handle exit Discorit
+    }
+}
+
+// Example usage in server function
+void handle_command(const char *command) {
+    if (strstr(command, "EXIT") != NULL) {
+        handle_exit(command);
+        return;
+    }
+
+    // Other command handling code
+}
+```
 
 
 
