@@ -3241,11 +3241,75 @@ void delete_all_rooms(client_data *client) {
 
 
 ### Delete Room All
-**Penjelasan**: Menghapus semua room kecuali room "admin".
+**Penjelasan**: Fungsi `delete_all_rooms` digunakan untuk menghapus semua room yang ada dalam sebuah channel, kecuali room "admin". Fungsi ini juga memastikan bahwa user memiliki izin yang cukup untuk melakukan tindakan ini dan memperbarui status user jika mereka berada di dalam salah satu room yang dihapus.
 
 **Alur**:
-1. **Loop melalui semua room**: Server melakukan loop melalui semua room yang ada.
-2. **Hapus room kecuali "admin"**: Jika room bukan "admin", server menghapus room tersebut.
+1. **Inisialisasi dan Persiapan Respons**:
+   - Inisialisasi variabel `client_fd` untuk menyimpan file descriptor soket klien.
+   - Inisialisasi buffer `response` untuk menyiapkan respons yang akan dikirim ke klien.
+
+2. **Memeriksa Jika User Ada di Dalam Channel**:
+   - Jika `client->channel` kosong (tidak ada channel yang terhubung), maka:
+     - Mencetak pesan kesalahan untuk debugging.
+     - Mengirim pesan kesalahan ke klien melalui soket.
+     - Mengakhiri fungsi dengan `return`.
+
+3. **Memeriksa Izin User**:
+   - Memanggil fungsi `check_channel_perms` untuk memeriksa izin user di channel yang terhubung.
+   - Jika izin tidak dapat diperiksa (`perms == -1`), maka:
+     - Mencetak pesan kesalahan untuk debugging.
+     - Mengirim pesan kesalahan ke klien melalui soket.
+     - Mengakhiri fungsi dengan `return`.
+   - Jika user tidak memiliki izin yang cukup (`perms == 0`), maka:
+     - Mencetak pesan kesalahan untuk debugging.
+     - Mengirim pesan kesalahan ke klien melalui soket.
+     - Mengakhiri fungsi dengan `return`.
+   - Jika user memiliki izin yang cukup (`perms == 1`), maka:
+     - Mencetak pesan bahwa user memiliki izin untuk debugging.
+
+4. **Menyiapkan Path Channel**:
+   - Menyiapkan string `path_channel` yang merupakan path direktori channel yang terhubung.
+
+5. **Membuka Direktori Channel**:
+   - Membuka direktori channel dengan `opendir`.
+   - Jika direktori tidak dapat dibuka (`dir == NULL`), maka:
+     - Mencetak pesan kesalahan untuk debugging.
+     - Mengirim pesan kesalahan ke klien melalui soket.
+     - Mengakhiri fungsi dengan `return`.
+
+6. **Loop Melalui Isi Direktori Channel**:
+   - Inisialisasi variabel `rooms_found` untuk menghitung jumlah room yang ditemukan.
+   - Menggunakan `readdir` untuk membaca isi direktori.
+   - Melewati entri `.` dan `..`.
+   - Untuk setiap entri:
+     - Mencetak nama room untuk debugging.
+     - Melewati direktori "admin".
+     - Menyiapkan path lengkap untuk setiap entri.
+     - Memeriksa apakah entri adalah direktori.
+     - Jika entri adalah direktori, maka:
+       - Meningkatkan penghitung `rooms_found`.
+       - Menghapus direktori room dengan `remove_directory`.
+
+7. **Menutup Direktori**:
+   - Menutup direktori dengan `closedir`.
+
+8. **Menulis Log**:
+   - Menyiapkan pesan log yang mencatat penghapusan semua room oleh user.
+   - Menulis log ke file log channel.
+
+9. **Memeriksa Jika User Ada di Dalam Room**:
+   - Jika user berada di dalam room (`client->room` tidak kosong), maka:
+     - Mencetak pesan untuk debugging.
+     - Mengosongkan variabel `client->room`.
+     - Mengirim respons ke klien dengan informasi bahwa semua room dihapus dan user keluar dari room.
+     - Mengakhiri fungsi dengan `return`.
+
+10. **Mengirim Respons ke Klien**:
+    - Jika tidak ada room yang ditemukan, maka:
+      - Mengirim pesan "No rooms found" ke klien.
+    - Jika ada room yang dihapus, maka:
+      - Mengirim pesan sukses ke klien bahwa semua room telah dihapus.
+
 
 **Kode**:
 <details>
@@ -3490,11 +3554,40 @@ void delete_all_rooms(client_data *client) {
 
 ### Ban
 #### Check Ban
-**Penjelasan**: Memeriksa apakah user diban atau tidak. Proses ini juga digunakan untuk memeriksa apakah channel masih ada atau tidak.
+**Penjelasan**:
+Fungsi `check_ban` bertujuan untuk memeriksa apakah user yang terhubung ke server saat ini telah dibanned dari channel yang mereka coba akses. Fungsi ini mengakses file `auth.csv` di folder `admin` pada channel untuk memeriksa status user.
 
 **Alur**:
-1. **Pemeriksaan status ban**: Server memeriksa status ban user di database atau file yang relevan.
-2. **Kirim pesan status**: Server mengirim pesan ke user atau admin terkait status ban.
+1. **Inisialisasi dan Persiapan**:
+   - Inisialisasi variabel `client_fd` untuk menyimpan file descriptor soket klien.
+
+2. **Memeriksa Jika User Ada di Dalam Channel**:
+   - Fungsi memeriksa apakah panjang `client->channel` adalah 0, yang berarti user tidak terhubung ke channel mana pun.
+   - Jika kondisi ini benar, cetak pesan kesalahan untuk debugging dan kembalikan nilai 0 untuk menunjukkan bahwa user tidak berada di channel mana pun.
+
+3. **Membuka File `auth.csv`**:
+   - Menyiapkan path lengkap untuk file `auth.csv` di folder `admin` dari channel yang terhubung.
+   - Membuka file `auth.csv` dalam mode read-only.
+   - Jika file tidak bisa dibuka, cetak pesan kesalahan untuk debugging dan kembalikan nilai -1 untuk menunjukkan bahwa file tidak dapat dibuka.
+
+4. **Looping Melalui File `auth.csv`**:
+   - Membaca baris demi baris dari file `auth.csv` menggunakan `fscanf`.
+   - Pada setiap baris, membaca ID dan role user dari file.
+   - Mencetak ID dan role yang dibaca untuk tujuan debugging.
+
+5. **Memeriksa ID dan Role**:
+   - Jika ID yang dibaca dari file sama dengan ID user yang sedang diperiksa:
+     - Jika role user adalah "BANNED", cetak pesan kesalahan untuk debugging, tutup file, dan kembalikan nilai 1 untuk menunjukkan bahwa user dibanned.
+     - Jika role user bukan "BANNED", break dari loop karena ID sudah cocok tetapi role tidak sesuai.
+
+6. **Menutup File**:
+   - Setelah selesai membaca file dan tidak menemukan role "BANNED" untuk user tersebut, tutup file `auth.csv`.
+
+7. **Mencetak Pesan Sukses**:
+   - Cetak pesan sukses untuk debugging yang menunjukkan bahwa user tidak dibanned.
+   - Kembalikan nilai 0 untuk menunjukkan bahwa user tidak dibanned.
+
+   
 
 **Kode**:
 <details>
@@ -3562,21 +3655,106 @@ int check_ban(client_data *client) {
 </details>
 
 
-#### Ban User
-**Penjelasan**: Mengubah status user menjadi banned.
+## Ban User
+#### Penjelasan:
+Fungsi `ban_user` digunakan untuk mem-banned user tertentu dari sebuah channel. Fungsi ini mengecek apakah user yang ingin di-banned ada dalam channel, memiliki izin yang cukup, dan bukan seorang admin atau root. Jika user valid ditemukan, maka statusnya diubah menjadi "BANNED".
 
-**Alur**:
-1. **Server menerima permintaan ban**: Admin mengirim permintaan untuk memban user.
-2. **Perbarui status user**: Server memperbarui status user menjadi banned di database atau file yang relevan.
-3. **Kirim pesan ke user dan admin**: Server mengirim pesan konfirmasi ke admin dan pesan pemberitahuan ke user yang diban.
+#### Alur:
+1. **Inisialisasi dan Persiapan Respons**:
+   - Inisialisasi variabel `client_fd` untuk menyimpan file descriptor soket klien.
+   - Inisialisasi buffer `response` untuk menyiapkan respons yang akan dikirim ke klien.
+   - Cetak nama user yang ingin di-banned untuk debugging.
 
-#### Unban User
-**Penjelasan**: Mengubah status user menjadi unbanned.
+2. **Memeriksa Jika User Ada di Dalam Channel**:
+   - Jika `client->channel` kosong (tidak ada channel yang terhubung), cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
 
-**Alur**:
-1. **Server menerima permintaan unban**: Admin mengirim permintaan untuk meng-unban user.
-2. **Perbarui status user**: Server memperbarui status user menjadi unbanned di database atau file yang relevan.
-3. **Kirim pesan ke user dan admin**: Server mengirim pesan konfirmasi ke admin dan pesan pemberitahuan ke user yang di-unban.
+3. **Memeriksa Izin User**:
+   - Memanggil fungsi `check_channel_perms` untuk memeriksa izin user di channel yang terhubung.
+   - Jika izin tidak dapat diperiksa, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+   - Jika user tidak memiliki izin, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+   - Jika user memiliki izin, cetak pesan sukses untuk debugging.
+
+4. **Memeriksa Jika User Mencoba Membanned Dirinya Sendiri**:
+   - Jika `client->username` sama dengan `username` yang ingin di-banned, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+5. **Membuka File `auth.csv` dan File Sementara**:
+   - Menyiapkan path lengkap untuk file `auth.csv` di folder `admin` dari channel yang terhubung.
+   - Membuka file `auth.csv` dalam mode read-only.
+   - Menyiapkan file sementara `.temp_auth.csv` untuk menulis perubahan.
+   - Jika file `auth.csv` tidak bisa dibuka, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+6. **Looping Melalui File `auth.csv`**:
+   - Membaca baris demi baris dari file `auth.csv` menggunakan `fscanf`.
+   - Pada setiap baris, membaca ID, nama user, dan role user dari file.
+   - Cetak nama user dan role yang dibaca untuk tujuan debugging.
+
+7. **Memeriksa Nama User dan Role**:
+   - Jika nama user yang dibaca dari file sama dengan `username` yang ingin di-banned:
+     - Jika role user adalah "ROOT" atau "ADMIN", cetak pesan kesalahan untuk debugging, tutup file, hapus file sementara, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+     - Jika role user bukan "ROOT" atau "ADMIN", tulis perubahan role menjadi "BANNED" ke file sementara dan set flag `found` menjadi 1.
+   - Jika nama user tidak cocok, tulis kembali baris yang sama ke file sementara tanpa perubahan.
+
+8. **Menutup File**:
+   - Tutup file `auth.csv` dan file sementara setelah selesai membaca file.
+
+9. **Menangani Jika Nama User Tidak Ditemukan**:
+   - Jika flag `found` adalah 0 (nama user tidak ditemukan), cetak pesan kesalahan untuk debugging, hapus file sementara, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+10. **Mengganti File `auth.csv` Lama dengan File Sementara**:
+    - Hapus file `auth.csv` lama dan ganti dengan file sementara yang baru.
+
+11. **Mencetak Pesan Sukses dan Menulis ke Log**:
+    - Cetak pesan sukses untuk debugging yang menunjukkan bahwa user telah di-banned.
+    - Tulis pesan ke log bahwa user telah di-banned dari channel.
+    - Kirim pesan sukses ke klien.
+
+## Unban User
+#### Penjelasan:
+Fungsi `unban_user` digunakan untuk menghapus status banned dari user tertentu di sebuah channel. Fungsi ini mengecek apakah user yang ingin di-unbanned ada dalam channel dan memiliki status "BANNED". Jika user valid ditemukan, maka statusnya diubah kembali ke status semula sebelum di-banned.
+
+#### Alur:
+1. **Inisialisasi dan Persiapan Respons**:
+   - Inisialisasi variabel `client_fd` untuk menyimpan file descriptor soket klien.
+   - Inisialisasi buffer `response` untuk menyiapkan respons yang akan dikirim ke klien.
+   - Cetak nama user yang ingin di-unbanned untuk debugging.
+
+2. **Memeriksa Jika User Ada di Dalam Channel**:
+   - Jika `client->channel` kosong (tidak ada channel yang terhubung), cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+3. **Memeriksa Izin User**:
+   - Memanggil fungsi `check_channel_perms` untuk memeriksa izin user di channel yang terhubung.
+   - Jika izin tidak dapat diperiksa, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+   - Jika user tidak memiliki izin, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+   - Jika user memiliki izin, cetak pesan sukses untuk debugging.
+
+4. **Membuka File `auth.csv` dan File Sementara**:
+   - Menyiapkan path lengkap untuk file `auth.csv` di folder `admin` dari channel yang terhubung.
+   - Membuka file `auth.csv` dalam mode read-only.
+   - Menyiapkan file sementara `.temp_auth.csv` untuk menulis perubahan.
+   - Jika file `auth.csv` tidak bisa dibuka, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+5. **Looping Melalui File `auth.csv`**:
+   - Membaca baris demi baris dari file `auth.csv` menggunakan `fscanf`.
+   - Pada setiap baris, membaca ID, nama user, dan role user dari file.
+   - Cetak nama user dan role yang dibaca untuk tujuan debugging.
+
+6. **Memeriksa Nama User dan Role**:
+   - Jika nama user yang dibaca dari file sama dengan `username` yang ingin di-unbanned dan role user adalah "BANNED":
+     - Tulis perubahan role kembali ke role semula ke file sementara dan set flag `found` menjadi 1.
+   - Jika nama user tidak cocok atau role bukan "BANNED", tulis kembali baris yang sama ke file sementara tanpa perubahan.
+
+7. **Menangani Jika Nama User Tidak Ditemukan atau Role Bukan "BANNED"**:
+   - Jika flag `found` adalah 0 (nama user tidak ditemukan atau role bukan "BANNED"), cetak pesan kesalahan untuk debugging, hapus file sementara, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+8. **Mengganti File `auth.csv` Lama dengan File Sementara**:
+    - Hapus file `auth.csv` lama dan ganti dengan file sementara yang baru.
+
+9. **Mencetak Pesan Sukses dan Menulis ke Log**:
+    - Cetak pesan sukses untuk debugging yang menunjukkan bahwa user telah di-unbanned.
+    - Tulis pesan ke log bahwa user telah di-unbanned dari channel.
+    - Kirim pesan sukses ke klien.
+
+
 
 **Kode**:
 <details>
@@ -3738,12 +3916,25 @@ void ban_user(char *username, client_data *client) {
 
 
 #### Remove User from Channel
-**Penjelasan**: Menghapus user dari channel dengan menghapus entri dari file `auth.csv`.
+**Penjelasan**: Fungsi `remove_user` digunakan untuk menghapus user tertentu dari channel. Fungsi ini memastikan bahwa user yang ingin dihapus bukanlah user yang sedang menjalankan fungsi, serta user tersebut bukan seorang "ROOT". 
 
 **Alur**:
-1. **Server menerima permintaan penghapusan user**: Admin mengirim permintaan untuk menghapus user dari channel.
-2. **Hapus entri user dari `auth.csv`**: Server menghapus entri user dari file `auth.csv` yang berisi daftar user yang memiliki akses ke channel tersebut.
-3. **Kirim pesan ke user dan admin**: Server mengirim pesan konfirmasi ke admin dan pesan pemberitahuan ke user yang dihapus.
+1. **Validasi User**:
+   - Cek apakah user mencoba menghapus dirinya sendiri.
+   - Pastikan user yang meminta penghapusan memiliki izin yang cukup (bukan "USER" biasa).
+
+2. **Buka dan Siapkan File**:
+   - Buka file `users.csv` untuk membaca data user.
+   - Buat file sementara untuk menulis perubahan data user.
+
+3. **Periksa dan Hapus User**:
+   - Loop melalui file `users.csv` untuk mencari user yang sesuai.
+   - Jika user ditemukan dan bukan "ROOT", abaikan user tersebut dalam penulisan file sementara.
+   - Jika user tidak ditemukan, keluarkan pesan kesalahan.
+
+4. **Tutup dan Ganti File**:
+   - Tutup file lama dan ganti dengan file sementara.
+   - Hapus user dari file otentikasi dengan memanggil fungsi `del_username_auth`.
 
 **Kode**:
 <details>
@@ -3871,11 +4062,23 @@ void remove_user(char *username, client_data *client) {
 
 ### User
 #### See User
-**Penjelasan**: Melihat data user dan variabel yang relevan saat testing.
+**Penjelasan**: Fungsi `list_user` digunakan untuk menampilkan daftar semua pengguna yang ada dalam sistem. Hanya pengguna dengan peran "ROOT" yang diizinkan untuk menggunakan fungsi ini.
 
 **Alur**:
-1. **User mengirim permintaan**: User mengirim permintaan untuk melihat User.
-2. **Server mengirim data pribadi**: Server mengirim data user.
+1. **Validasi Root**:
+   - Periksa apakah pengguna yang meminta daftar bukan "ROOT". Jika tidak, kirim pesan kesalahan.
+
+2. **Buka File Pengguna**:
+   - Buka file `users.csv` untuk membaca daftar pengguna.
+
+3. **Periksa File**:
+   - Jika file tidak dapat dibuka, kirim pesan kesalahan.
+
+4. **Baca dan Daftar Pengguna**:
+   - Loop melalui file untuk membaca nama pengguna dan tambahkan nama-nama tersebut ke dalam respon.
+
+5. **Kirim Daftar Pengguna**:
+   - Tutup file dan kirim daftar nama pengguna ke client.
 
 **Kode**:
 <details>
@@ -3938,11 +4141,29 @@ void list_user(client_data *client) {
 
 
 #### Edit Profile Self (Username)
-**Penjelasan**: Mengubah username sendiri.
+**Penjelasan**: Fungsi `edit_username` digunakan untuk mengedit nama pengguna yang ada dalam sistem, asalkan pengguna yang melakukan perubahan adalah admin atau root, atau pengguna yang sama yang ingin mengedit namanya sendiri.
 
 **Alur**:
-1. **User mengirim permintaan perubahan username**: User mengirim permintaan untuk mengubah username.
-2. **Server memperbarui username**: Server memperbarui username di database atau file yang relevan.
+1. **Validasi Peran dan Pengguna**:
+   - Periksa apakah pengguna adalah admin atau root, atau apakah pengguna sedang mencoba mengedit nama dirinya sendiri. Jika tidak, kirim pesan kesalahan.
+
+2. **Buka File Pengguna**:
+   - Buka file `users.csv` untuk membaca daftar pengguna.
+
+3. **Periksa File**:
+   - Jika file tidak dapat dibuka, kirim pesan kesalahan.
+
+4. **Baca dan Edit Nama Pengguna**:
+   - Loop melalui file untuk menemukan nama pengguna yang cocok, kemudian tulis nama pengguna baru ke file sementara.
+
+5. **Periksa Nama Pengguna**:
+   - Jika nama pengguna tidak ditemukan, kirim pesan kesalahan.
+
+6. **Ganti File**:
+   - Hapus file lama dan ganti dengan file sementara yang telah diperbarui.
+
+7. **Panggil `edit_username_auth`**:
+   - Panggil fungsi `edit_username_auth` untuk memperbarui nama pengguna dalam file otorisasi yang sesuai.
 
 **Kode**:
 <details>
@@ -4044,11 +4265,29 @@ void edit_username(char *username, char *newusername, client_data *client) {
 
 
 #### Edit Profile Self (Password)
-**Penjelasan**: Mengubah password sendiri.
+**Penjelasan**: Fungsi `edit_password` digunakan untuk mengubah kata sandi pengguna yang ada dalam sistem. Pengguna yang melakukan perubahan haruslah admin, root, atau pengguna yang sama yang ingin mengedit kata sandinya sendiri.
 
 **Alur**:
-1. **User mengirim permintaan perubahan password**: User mengirim permintaan untuk mengubah password.
-2. **Server memperbarui password**: Server memperbarui password di database atau file yang relevan.
+1. **Validasi Peran dan Pengguna**:
+   - Periksa apakah pengguna adalah admin atau root, atau apakah pengguna sedang mencoba mengedit kata sandi dirinya sendiri. Jika tidak, kirim pesan kesalahan.
+
+2. **Buka File Pengguna**:
+   - Buka file `users.csv` untuk membaca daftar pengguna dan menulis ke file sementara.
+
+3. **Periksa File**:
+   - Jika file tidak dapat dibuka, kirim pesan kesalahan.
+
+4. **Baca dan Edit Kata Sandi**:
+   - Loop melalui file untuk menemukan nama pengguna yang cocok, kemudian hash kata sandi baru dan tulis ke file sementara.
+
+5. **Periksa Nama Pengguna**:
+   - Jika nama pengguna tidak ditemukan, kirim pesan kesalahan.
+
+6. **Ganti File**:
+   - Hapus file lama dan ganti dengan file sementara yang telah diperbarui.
+
+7. **Kirim Respons**:
+   - Kirim pesan ke pengguna yang menandakan bahwa perubahan kata sandi berhasil.
 
 **Kode**:
 <details>
