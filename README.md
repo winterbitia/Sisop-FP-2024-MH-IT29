@@ -723,7 +723,7 @@ int handle_command(const char *buffer) {
 </details>
 
 ### Server
-Fungsi `handle_client` bertanggung jawab untuk menangani koneksi dari setiap client yang terhubung ke server chat. Saat dipanggil, fungsi ini menerima socket client sebagai argumen. Pertama, socket client diambil dari argumen dan memori untuk argumen tersebut dibebaskan. Fungsi kemudian menambahkan socket client ke dalam daftar `clients` yang sedang aktif, menggunakan mutex untuk menjaga keamanan akses. Setelah itu, fungsi masuk ke dalam loop yang terus menerus menerima pesan dari client menggunakan `recv`. Setiap pesan yang diterima kemudian disebarkan ke semua client lain dengan fungsi `broadcast_message`. Jika koneksi dengan client terputus, fungsi ini menghapus client dari daftar `clients` dan menutup socket-nya sebelum berakhir.
+Fungsi `handle_client` bertanggung jawab untuk menangani koneksi dari setiap client yang terhubung ke server chat. Saat dipanggil, fungsi ini menerima socket client sebagai argumen. Pertama, socket client diambil dari argumen dan memori untuk argumen tersebut dibebaskan. Fungsi kemudian menambahkan socket client ke dalam daftar `clients` yang sedang aktif, menggunakan mutex untuk menjaga keamanan akses. Setelah itu, fungsi masuk ke dalam loop yang terus menerus menerima pesan dari client menggunakan `recv`. Setiap pesan yang diterima kemudian disebarkan ke semua client lain. Jika koneksi dengan client terputus, fungsi ini menghapus client dari daftar `clients` dan menutup socket-nya sebelum berakhir.
 
 <details>
 <summary><h3>Klik untuk melihat kode</h3></summary>
@@ -3345,7 +3345,7 @@ if (strcmp(client->channel, changed) == 0) {
 </details>
 
 #### Bonus Case 2
-Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan oleh user lain, untuk menghindari konflik command, maka user yang sedang berada di dalam nama channel lama akan keluar dari channel secara aman sebelum command berikutnya terkirim. Hal ini dilakukan secara tidak langsung menggunakan fungsi `check_ban`
+Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan oleh user lain, untuk menghindari konflik command, maka user yang sedang berada di dalam nama channel lama akan keluar dari channel secara aman sebelum command berikutnya terkirim. Hal ini dilakukan secara tidak langsung menggunakan fungsi `check_ban`.
 
 ### Del Channel
 Fungsi delete_channel digunakan untuk menghapus channel yang ada. Proses ini dimulai dengan memeriksa izin pengguna untuk channel yang akan dihapus menggunakan fungsi check_channel_perms. Jika izin pengguna tidak mencukupi, fungsi akan mengirim pesan error ke client. Jika izin mencukupi, fungsi akan membuka file channels.csv dan file sementara untuk menyimpan data yang telah dimodifikasi. Selanjutnya, fungsi akan membaca setiap entri di channels.csv dan membandingkannya dengan nama channel yang akan dihapus. Jika tidak ditemukan kecocokan, entri lama akan ditulis ulang ke file sementara. Jika ditemukan kecocokan, entri tersebut tidak akan ditulis ulang, menandakan bahwa channel tersebut telah dihapus. Setelah semua entri diproses, file asli channels.csv akan dihapus dan file sementara akan diganti namanya menjadi channels.csv. Kemudian, fungsi akan menghapus direktori channel yang dihapus dengan memanggil remove_directory. Jika channel yang dihapus adalah channel yang sedang digunakan oleh client, fungsi juga akan memperbarui data client untuk mengosongkan nama channel dan room yang sedang digunakan, serta mengirim pesan keluar ke client. Terakhir, fungsi akan mengirim pesan sukses ke client yang menunjukkan bahwa channel telah berhasil dihapus.
@@ -4046,124 +4046,149 @@ void ban_user(char *username, client_data *client) {
 
 
 #### Remove User from Channel
-**Penjelasan**: Fungsi `remove_user` digunakan untuk menghapus user tertentu dari channel. Fungsi ini memastikan bahwa user yang ingin dihapus bukanlah user yang sedang menjalankan fungsi, serta user tersebut bukan seorang "ROOT". 
+**Penjelasan**: Fungsi `kick_user` digunakan untuk menghapus user tertentu dari channel. Fungsi ini memastikan bahwa user yang ingin dihapus bukanlah user yang sedang menjalankan fungsi, serta user tersebut bukan seorang "ROOT". 
 
 **Alur**:
-1. **Validasi User**:
-   - Cek apakah user mencoba menghapus dirinya sendiri.
-   - Pastikan user yang meminta penghapusan memiliki izin yang cukup (bukan "USER" biasa).
+1. **Inisialisasi dan Persiapan Respons**:
+   - Inisialisasi variabel `client_fd` untuk menyimpan file descriptor soket klien.
+   - Inisialisasi buffer `response` untuk menyiapkan respons yang akan dikirim ke klien.
+   - Cetak nama user yang ingin di-unbanned untuk debugging.
 
-2. **Buka dan Siapkan File**:
-   - Buka file `users.csv` untuk membaca data user.
-   - Buat file sementara untuk menulis perubahan data user.
+2. **Memeriksa Jika User Ada di Dalam Channel**:
+   - Jika `client->channel` kosong (tidak ada channel yang terhubung), cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
 
-3. **Periksa dan Hapus User**:
-   - Loop melalui file `users.csv` untuk mencari user yang sesuai.
-   - Jika user ditemukan dan bukan "ROOT", abaikan user tersebut dalam penulisan file sementara.
-   - Jika user tidak ditemukan, keluarkan pesan kesalahan.
+3. **Memeriksa Izin User**:
+   - Memanggil fungsi `check_channel_perms` untuk memeriksa izin user di channel yang terhubung.
+   - Jika izin tidak dapat diperiksa, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+   - Jika user tidak memiliki izin, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+   - Jika user memiliki izin, cetak pesan sukses untuk debugging.
 
-4. **Tutup dan Ganti File**:
-   - Tutup file lama dan ganti dengan file sementara.
-   - Hapus user dari file otentikasi dengan memanggil fungsi `del_username_auth`.
+4. **Membuka File `auth.csv` dan File Sementara**:
+   - Menyiapkan path lengkap untuk file `auth.csv` di folder `admin` dari channel yang terhubung.
+   - Membuka file `auth.csv` dalam mode read-only.
+   - Menyiapkan file sementara `.temp_auth.csv` untuk menulis perubahan.
+   - Jika file `auth.csv` tidak bisa dibuka, cetak pesan kesalahan untuk debugging, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+5. **Looping Melalui File `auth.csv`**:
+   - Membaca baris demi baris dari file `auth.csv` menggunakan `fscanf`.
+   - Pada setiap baris, membaca ID, nama user, dan role user dari file.
+   - Cetak nama user dan role yang dibaca untuk tujuan debugging.
+
+6. **Memeriksa Nama User dan Role**:
+   - Jika nama user yang dibaca dari file sama dengan `username` yang ingin di-delete:
+     - Tidak perlu tulis ke file sementara dan set flag `found` menjadi 1.
+   - Jika nama user tidak cocok, tulis kembali baris yang sama ke file sementara tanpa perubahan.
+
+7. **Menangani Jika Nama User Tidak Ditemukan**:
+   - Jika flag `found` adalah 0, cetak pesan kesalahan untuk debugging, hapus file sementara, kirim pesan kesalahan ke klien, dan kembalikan fungsi.
+
+8. **Mengganti File `auth.csv` Lama dengan File Sementara**:
+    - Hapus file `auth.csv` lama dan ganti dengan file sementara yang baru.
+
+9. **Mencetak Pesan Sukses dan Menulis ke Log**:
+    - Cetak pesan sukses untuk debugging yang menunjukkan bahwa user telah di-unbanned.
+    - Tulis pesan ke log bahwa user telah di-unbanned dari channel.
+    - Kirim pesan sukses ke klien.
 
 <details>
 <summary><h3>Klik untuk melihat kode</h3></summary>
    
 ```c
-void remove_user(char *username, client_data *client) {
+//========================//
+// KICK USER FROM CHANNEL //
+//========================//
+
+void kick_user(char *username, client_data *client) {
     int client_fd = client->socket_fd;
 
     // DEBUGGING
-    printf("[%s][REMOVE USER] username: %s\n", client->username, username);
+    printf("[%s][KICK USER] username: %s\n", client->username, username);
 
     // Prepare response
     char response[MAX_BUFFER];
 
-    // Check if user is trying to remove self
-    if (strcmp(client->username, username) == 0) {
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
         // DEBUGGING
-        printf("[%s][REMOVE USER] Error: User is trying to remove self\n", client->username);
+        printf("[%s][KICK USER] Error: User is not in a channel\n", client->username);
 
         // Send response to client
-        sprintf(response, "MSG,Error: User is trying to remove self");
+        sprintf(response, "MSG,Error: User is not in a channel");
         send(client_fd, response, strlen(response), 0);
         return;
     }
 
-    // Check if user is admin or root
-    if (strcmp(client->role, "USER") == 0) {
+    // Check permissions
+    int perms = check_channel_perms(client->channel, client);
+    if (perms == -1) {
         // DEBUGGING
-        printf("[%s][REMOVE USER] Error: User is not root\n", client->username);
+        printf("[%s][KICK USER] Error: Unable to check permissions\n", client->username);
 
         // Send response to client
-        sprintf(response, "MSG,Error: User is not root");
+        sprintf(response, "MSG,Error: Unable to check permissions");
         send(client_fd, response, strlen(response), 0);
         return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][KICK USER] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][KICK USER] User is privileged\n", client->username);
     }
 
-    // Open file
-    FILE *file = fopen(users_csv, "r");
+    // Open auth of channel
+    char path_auth[MAX_BUFFER * 2];
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, client->channel);
+    FILE *file_auth = fopen(path_auth, "r");
 
     // Open temp file
     char temp_csv[MAX_BUFFER * 2];
-    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    sprintf(temp_csv, "%s/%s/admin/.temp_auth.csv", cwd, client->channel);
     FILE *temp = fopen(temp_csv, "w");
 
     // Fail if file cannot be opened
-    if (file == NULL) {
+    if (file_auth == NULL) {
         // DEBUGGING
-        printf("[%s][REMOVE USER] Error: Unable to open file\n", client->username);
+        printf("[%s][KICK USER] Error: Unable to open auth file\n", client->username);
 
         // Send response to client
-        sprintf(response, "MSG,Error: Unable to open file");
+        sprintf(response, "MSG,Error: Unable to open auth file");
         send(client_fd, response, strlen(response), 0);
         return;
     }
 
-    // Loop until username matches
-    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
+    // Loop through username and role
+    int id; char namecheck[MAX_BUFFER], role[8];
     int found = 0;
-    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+
+    while (fscanf(file_auth, "%d,%[^,],%s", &id, namecheck, role) == 3) {
         // DEBUGGING
-        printf("[%s][REMOVE USER] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+        printf("[%s][KICK USER] name: %s, role: %s\n", client->username, namecheck, role);
 
         // Check if username matches
         if (strcmp(namecheck, username) == 0) {
-            // Check if role is not root
-            if (strcmp(role, "ROOT") == 0) {
-                // DEBUGGING
-                printf("[%s][REMOVE USER] Error: User is root\n", client->username);
-
-                // Close files
-                fclose(file);
-                fclose(temp);
-
-                // Remove temp file
-                remove(temp_csv);
-
-                // Send response to client
-                sprintf(response, "MSG,Error: User is root");
-                send(client_fd, response, strlen(response), 0);
-                return;
-            }
-
             // DEBUGGING
-            printf("[%s][REMOVE USER] Success: Username found\n", client->username);
+            printf("[%s][KICK USER] Success: Username found\n", client->username);
             found = 1;
         } else {
-            // Write old username to temp file
-            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+            // Write old role to temp file
+            fprintf(temp, "%d,%s,%s\n", id, namecheck, role);
         }
     }
 
     // Close files
-    fclose(file);
+    fclose(file_auth);
     fclose(temp);
 
     // Fail if username does not match
     if (found == 0) {
         // DEBUGGING
-        printf("[%s][REMOVE USER] Error: Username not found\n", client->username);
+        printf("[%s][KICK USER] Error: Username not found\n", client->username);
 
         // Remove temp file
         remove(temp_csv);
@@ -4175,14 +4200,20 @@ void remove_user(char *username, client_data *client) {
     }
 
     // Remove old file and rename temp file
-    remove(users_csv);
-    rename(temp_csv, users_csv);
+    remove(path_auth);
+    rename(temp_csv, path_auth);
 
     // DEBUGGING
-    printf("[%s][REMOVE USER] Success: User removed\n", client->username);
+    printf("[%s][KICK USER] Success: %s kicked\n", client->username, username);
 
-    // Call del_username_auth
-    del_username_auth(username, client);
+    // Write to log
+    char message[MAX_BUFFER * 2];
+    sprintf(message, "%s kicked user %s from %s\n", client->username, username, client->channel);
+    write_log(client->channel, message);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: %s kicked", username);
+    send(client_fd, response, strlen(response), 0);
     return;
 }
 ```
