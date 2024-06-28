@@ -1552,8 +1552,73 @@ void handle_input(void *arg){
 ## Listing
 
 ### Channel
+Proses listing channel di DiscorIT dilakukan dengan membaca file channels.csv. Pertama-tama, file channels.csv dibuka untuk membaca daftar channel yang tersedia. Jika file tidak dapat dibuka, sistem akan mengirimkan pesan kesalahan kepada client. Selanjutnya, sistem melakukan iterasi melalui setiap baris dalam file yang berisi ID dan nama channel. Setiap baris dipisahkan menggunakan fscanf, yang mengidentifikasi ID dan nama channel. Jika ada channel yang ditemukan, nama-nama channel tersebut akan digabungkan ke dalam satu string respon yang kemudian dikirimkan ke client. Jika tidak ada channel yang ditemukan, sistem akan mengirimkan pesan bahwa tidak ada channel yang ditemukan. Setelah iterasi selesai, file ditutup dan respon dikirimkan ke client.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin kalo alurnya baca dari channels.csv
+```c
+//===============//
+// LIST CHANNELS //
+//===============//
+
+void list_channel(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Open file
+    FILE *file = fopen(channels_csv, "r");
+
+    // Prepare response
+    char response[MAX_BUFFER * 2];
+    sprintf(response, "MSG,");
+    int channels_found = 0;
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][LIST CHANNEL] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id and channel
+    int id = 1; char channel[MAX_BUFFER];
+    while (fscanf(file, "%d,%[^,],%*s", &id, channel) == 2) {
+        // DEBUGGING
+        printf("[%s][LIST CHANNEL] id: %d, channel: %s\n", client->username, id, channel);
+
+        // Increment channels found
+        channels_found++;
+
+        // Concatenate response
+        if (id > 1) strcat(response, " ");
+        strcat(response, channel);
+    }
+
+    // Close file
+    fclose(file);
+
+    // Send response to client
+    if (channels_found == 0) {
+        // DEBUGGING
+        printf("[%s][LIST CHANNEL] No channels found\n", client->username);
+
+        sprintf(response, "MSG,No channels found");
+        send(client_fd, response, strlen(response), 0);
+    } else {
+        // DEBUGGING
+        printf("[%s][LIST CHANNEL] Channels found: %d\n", client->username, channels_found);
+
+        send(client_fd, response, strlen(response), 0);
+    }
+
+    return;
+}
+```
+</details>
 
 ### Room
 
