@@ -3685,9 +3685,11 @@ void delete_all_rooms(client_data *client) {
 }
 
 ```
+</details>
+
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256271455667359875/image.png?ex=66802977&is=667ed7f7&hm=007cd37bbb3d42614bd1de453ce5123a0a4bcf80455e76c0e4ab8e8352304ff7&=&format=webp&quality=lossless&width=720&height=127)
 
-</details>
+
 
 
 ### Ban
@@ -4044,10 +4046,12 @@ void ban_user(char *username, client_data *client) {
 }
 
 ```
+</details>
+
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256274088352026716/image.png?ex=66802beb&is=667eda6b&hm=1f48534a39634d5bf0eab8249d088c74772b5c38ca6bda02be35414f5d1c1588&=&format=webp&quality=lossless)
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256274088654278666/image.png?ex=66802beb&is=667eda6b&hm=9f47b8c01bbe3f07c2c70b4ce8d44ada151f81abbffd52bef644b233f87cd3d4&=&format=webp&quality=lossless)
 
-</details>
+
 
 
 #### Remove User from Channel
@@ -4222,9 +4226,11 @@ void kick_user(char *username, client_data *client) {
     return;
 }
 ```
+</details>
+
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256274270586408980/image.png?ex=66802c16&is=667eda96&hm=c4d5fc78f01676916c482da1197015691fcc041e0ddec8d807ea3e4c7b1a1a46&=&format=webp&quality=lossless)
 
-</details>
+
 
 
 ### User
@@ -4303,9 +4309,11 @@ void list_user(client_data *client) {
 }
 
 ```
+</details>
+
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256274430099980348/image.png?ex=66802c3c&is=667edabc&hm=439ba39be2302ea9e204831e3f5f1c0c8c7a19d70cfbbc32f2bfe44c7f82cf88&=&format=webp&quality=lossless)
 
-</details>
+
 
 #### Edit Profile Self (Username)
 **Penjelasan**: Fungsi `edit_username` digunakan untuk mengedit nama pengguna yang ada dalam sistem, asalkan pengguna yang melakukan perubahan adalah admin atau root, atau pengguna yang sama yang ingin mengedit namanya sendiri.
@@ -4556,9 +4564,11 @@ void edit_password(char *username, char *newpassword, client_data *client) {
     return;    
 }
 ```
+</details>
+
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256276074078277632/image.png?ex=66802dc4&is=667edc44&hm=f82eca66143fd19299c91b74713a0a374545ccc8e047718674cd3748689d0529&=&format=webp&quality=lossless)
 
-</details>
+
 
 
 ### Exit
@@ -4631,9 +4641,11 @@ void exit_user(client_data *client){
     return;
 }
 ```
+</details>
+
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256276729710907413/image.png?ex=66802e60&is=667edce0&hm=ed8fd0c3b9c705d1ce8ba7f7fd04834c59dd8e62d17ee7c3cc472e668a30ccf0&=&format=webp&quality=lossless)
 
-</details>
+
 
 ### User Log
 **Penjelasan**: Fungsi ini digunakan untuk mencatat pesan log ke dalam file `log.csv` yang terletak di direktori admin pada channel tertentu. Ini berarti semua aktivitas yang tercatat di log ini berhubungan dengan manajemen channel tersebut, seperti pembuatan dan penghapusan room, serta aktivitas lain yang relevan dengan pengelolaan channel..
@@ -5095,8 +5107,9 @@ int handle_command(const char *buffer) {
     }
 }
 ```
+</details>
 ![alt text](https://media.discordapp.net/attachments/1191396440845598845/1256278090972397650/image.png?ex=66802fa5&is=667ede25&hm=fd2f973927ef23940c4720c0d6c643cdedf2506bb3cef52753615ddedbd99756&=&format=webp&quality=lossless)
 
-</details>
+
 
 
