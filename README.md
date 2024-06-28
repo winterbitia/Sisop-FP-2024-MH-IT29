@@ -13,10 +13,10 @@ Dalam final project praktikum DiscorIT, kami diminta untuk menyelesaikan impleme
 Program ini memungkinkan user untuk berkomunikasi secara real-time melalui channel dan room yang dapat dikelola oleh user dengan peran tertentu. User harus melakukan autentikasi sebelum dapat mengakses fitur-fitur yang ada. Keamanan juga dijamin dengan menggunakan bcrypt untuk enkripsi password dan key channel.
 
 ### Tree
-![alt text](https://discord.com/channels/1167284488057925702/1256171847284953088/1256172451650605066)
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256172451142963303/Screenshot_1970.png?ex=667fcd42&is=667e7bc2&hm=d495f45000b7043dbf785212aaff8bc655e57391623ec388db5340a0f382f399&=&format=webp&quality=lossless&width=718&height=656)
 
 ### Keterangan Setiap File
-ini gambar
+![alt text] (https://cdn.discordapp.com/attachments/1256171847284953088/1256172451428171947/Screenshot_1971.png?ex=667fcd42&is=667e7bc2&hm=a6bea88f079dc47b94bb9ee4fe0ad4180a1f7d29cf8c5219be8fb77a16eef59e&)
 
 # Authentikasi
 
