@@ -5,8 +5,6 @@
 - Amoes Noland (5027231028)
 - Malvin Putra Rismahardian (5027231048)
 
-# WORK IN PROGRESS !!!
-
 # Pendahuluan
 Dalam final project praktikum DiscorIT, kami diminta untuk menyelesaikan implementasi sebuah sistem chat berbasis socket yang terdiri dari tiga file utama yaitu discorit.c (client untuk mengirim request), server.c (server yang menerima dan merespon request), dan monitor.c (client untuk menampilkan chat secara real-time).
 
@@ -416,24 +414,16 @@ void register_user(char *username, char *password, client_data *client) {
 ```
 </details>
 
-User pertama yang mendaftar akan diberi user ID 1 dan dianggap sebagai root. Fungsi get_next_user_id akan mengembalikan user ID berikutnya berdasarkan ID tertinggi yang ada di users.csv.
+User pertama yang mendaftar akan diberi user ID 1 dan dianggap sebagai root, dan loop juga akan mengembalikan user ID berikutnya berdasarkan ID tertinggi yang ada di users.csv.
 **Kode**:
 <details>
 <summary><h3>Klik untuk melihat detail</h3>></summary>
 
 ```c
-int get_next_user_id() {
-    FILE *file = fopen(users_csv, "r");
-    int max_id = 0;
-    char line[MAX_BUFFER];
-    while (fgets(line, MAX_BUFFER, file)) {
-        int user_id = atoi(strtok(line, ","));
-        if (user_id > max_id) {
-            max_id = user_id;
-        }
-    }
-    fclose(file);
-    return max_id + 1;
+    // Set role to USER by default
+    char role[8];
+    if (id == 0) strcpy(role, "ROOT");
+    else strcpy(role, "USER");
 }
 ```
 </details>
@@ -444,21 +434,19 @@ Fungsi username_exists digunakan untuk memeriksa apakah username sudah ada di us
 <summary><h3>Klik untuk melihat detail</h3>></summary>
 
 ```c
-bool username_exists(char *username) {
-    FILE *file = fopen(users_csv, "r");
-    char line[MAX_BUFFER];
-    while (fgets(line, MAX_BUFFER, file)) {
-        char *token = strtok(line, ",");
-        strtok(NULL, ","); // Skip user ID
-        char *existing_username = strtok(NULL, ",");
-        if (strcmp(existing_username, username) == 0) {
+// Fail if username already exists
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[REGISTER] Error: Username already exists\n");
+
+            // Close file
             fclose(file);
-            return true;
+
+            // Send response to client
+            sprintf(response, "MSG,Error: Username %s already exists", username);
+            send(client_fd, response, strlen(response), 0);
+            return;
         }
-    }
-    fclose(file);
-    return false;
-}
 ```
 </details>
 
@@ -468,12 +456,9 @@ Password yang diberikan oleh user akan dienkripsi sebelum disimpan di users.csv.
 <summary><h3>Klik untuk melihat detail</h3>></summary>
 
 ```c
-void encrypt_password(char *password, char *encrypted_password) {
-    for (int i = 0; i < strlen(password); i++) {
-        encrypted_password[i] = password[i] + 1;
-    }
-    encrypted_password[strlen(password)] = '\0';
-}
+    // Hash password
+    char hash[MAX_BUFFER];
+    strcpy(hash, crypt(password, HASHCODE));
 ```
 </details>
 
