@@ -16,7 +16,7 @@ Program ini memungkinkan user untuk berkomunikasi secara real-time melalui chann
 ![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256172451142963303/Screenshot_1970.png?ex=667fcd42&is=667e7bc2&hm=d495f45000b7043dbf785212aaff8bc655e57391623ec388db5340a0f382f399&=&format=webp&quality=lossless&width=718&height=656)
 
 ### Keterangan Setiap File
-![alt text] (https://cdn.discordapp.com/attachments/1256171847284953088/1256172451428171947/Screenshot_1971.png?ex=667fcd42&is=667e7bc2&hm=a6bea88f079dc47b94bb9ee4fe0ad4180a1f7d29cf8c5219be8fb77a16eef59e&)
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256172451428171947/Screenshot_1971.png?ex=667fcd42&is=667e7bc2&hm=a6bea88f079dc47b94bb9ee4fe0ad4180a1f7d29cf8c5219be8fb77a16eef59e&=&format=webp&quality=lossless&width=584&height=656)
 
 # Authentikasi
 
