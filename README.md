@@ -23,7 +23,7 @@ Langkah pertama dalam proses autentikasi adalah menghubungkan client ke server. 
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 // Server connect function
@@ -59,7 +59,7 @@ Setelah koneksi berhasil, client dapat mengirim command untuk register atau logi
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 // Main function
@@ -123,9 +123,10 @@ int main(int argc, char *argv[]) {
 
 ### Pengelolaan Buffer dan Pengiriman Register/Login ke Server
 Fungsi handle_account digunakan untuk mengirim command register atau login ke server, kemudian menerima dan menangani respon dari server.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 // Account handler function
@@ -164,9 +165,10 @@ int handle_account(const char *buffer) {
 ## Login/Register (Server)
 ### Mendapatkan Folder Menggunakan getcwd
 Awalnya server akan mendapat folder menggunakan fungsi getcwd. Ini digunakan untuk menyimpan dan mengakses file users.csv dan channels.csv.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 int main(int argc, char *argv[]){
@@ -209,9 +211,10 @@ int main(int argc, char *argv[]){
 
 ### Start Server
 Fungsi `start_server` bertanggung jawab untuk menginisialisasi server dengan beberapa langkah penting. Pertama, fungsi ini membuat sebuah socket yang akan digunakan untuk komunikasi jaringan. Jika pembuatan socket gagal, program akan menampilkan pesan kesalahan dan keluar. Selanjutnya, socket tersebut diikat (bind) ke alamat dan port tertentu, memungkinkan server untuk menerima koneksi dari klien melalui port tersebut. Jika proses pengikatan gagal, program akan menampilkan pesan kesalahan dan keluar. Setelah socket berhasil diikat, server akan mendengarkan koneksi masuk dari klien, siap dalam menerima sejumlah koneksi yang telah ditentukan oleh `MAX_CLIENTS`. Jika proses ini gagal, program akan menampilkan pesan kesalahan dan keluar. Sebagai tambahan, server akan menampilkan pesan debug untuk menunjukkan bahwa server telah dimulai dan mendengarkan pada port yang ditentukan.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void start_server(){
@@ -245,9 +248,10 @@ void start_server(){
 
 ### Daemon
 Jika server dijalankan tanpa flag `-f`, maka server akan berjalan sebagai daemon. Fungsi `daemonize` bertugas untuk memisahkan proses dari terminal dan menjalankannya di latar belakang. Langkah pertama adalah melakukan fork untuk membuat child process, dan jika berhasil, parent process akan keluar sehingga hanya child process yang berjalan. Selanjutnya, umask diatur ke 0 untuk memastikan izin file yang benar, dan session ID baru dibuat dengan `setsid()` untuk memisahkan proses dari terminal pengendali. Folder diubah ke root (`/`) untuk menghindari penguncian folder tertentu. Setelah itu, file deskriptor standar (`stdin`, `stdout`, dan `stderr`) ditutup untuk memutus hubungan dengan terminal, dan kemudian diarahkan ke `/dev/null` untuk memastikan input/output daemon tidak mengganggu atau terganggu oleh terminal.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void daemonize(){
@@ -275,9 +279,10 @@ void daemonize(){
 
 ### Menunggu Koneksi Client dan Membuat Thread
 Untuk menunggu koneksi masuk dari klien dan membuat thread baru untuk menangani setiap koneksi, server menggunakan sebuah loop tak terbatas. Di setiap iterasi loop, server akan memanggil `accept()` untuk menerima koneksi dari klien. Jika koneksi diterima dengan sukses, server akan menyiapkan struktur data `client_data` untuk menyimpan informasi klien seperti file descriptor socket, username, dan peran (role). Selanjutnya, server membuat thread baru menggunakan `pthread_create()` yang akan menjalankan fungsi `handle_client` untuk menangani komunikasi dengan klien menggunakan data `client_data` yang telah disiapkan. Proses ini memungkinkan server untuk melayani beberapa klien secara bersamaan dengan menggunakan thread terpisah untuk setiap koneksi. Setelah membuat thread, server melakukan `sleep(1)` untuk memberi jeda sebelum kembali menunggu koneksi baru, menyesuaikan kecepatan proses dengan penggunaan sumber daya yang optimal.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 // Accept incoming connections
@@ -305,9 +310,10 @@ while (1){
 
 ### Handling Buffer yang Dikirim Client untuk Register/Login
 Untuk menangani buffer yang dikirim oleh klien untuk proses registrasi (REGISTER) atau masuk (LOGIN), fungsi handle_client berperan penting. Pertama, fungsi ini membaca data dari klien melalui socket menggunakan recv() dan menyimpannya dalam buffer buffer dengan ukuran maksimum MAX_BUFFER. Setelah menerima data, fungsi menggunakan strtok() untuk memisahkan perintah (command) dari buffer, yang kemudian dibandingkan dengan string "REGISTER" atau "LOGIN". Jika command sesuai dengan "REGISTER", fungsi handle_register dipanggil untuk memproses registrasi klien dengan data yang diterima. Sedangkan jika command adalah "LOGIN", fungsi handle_login dipanggil untuk memproses proses login klien. Setelah selesai memproses command, buffer direset menggunakan memset() untuk persiapan menerima data selanjutnya dari klien. Ketika klien menutup koneksi, handle_client menutup socket yang terkait, membebaskan memori yang dialokasikan untuk struktur data klien (client_data), dan mengembalikan nilai NULL karena tipe fungsi ini adalah void *
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void *handle_client(void *arg) {
@@ -333,9 +339,10 @@ void *handle_client(void *arg) {
 
 ## Fungsi Register di Server
 Fungsi register_user bertanggung jawab untuk menangani pendaftaran user baru. Fungsi ini memastikan bahwa username unik dan menyimpan data user yang baru terdaftar di users.csv. User pertama yang mendaftar akan diberi user ID 1 (root).
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void register_user(char *username, char *password, client_data *client) {
@@ -415,9 +422,10 @@ void register_user(char *username, char *password, client_data *client) {
 </details>
 
 User pertama yang mendaftar akan diberi user ID 1 dan dianggap sebagai root, dan loop juga akan mengembalikan user ID berikutnya berdasarkan ID tertinggi yang ada di users.csv.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
     // Set role to USER by default
@@ -429,9 +437,10 @@ User pertama yang mendaftar akan diberi user ID 1 dan dianggap sebagai root, dan
 </details>
 
 Fungsi username_exists digunakan untuk memeriksa apakah username sudah ada di users.csv. Jika sudah ada, maka user tidak bisa mendaftar dengan username tersebut.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 // Fail if username already exists
@@ -450,10 +459,11 @@ Fungsi username_exists digunakan untuk memeriksa apakah username sudah ada di us
 ```
 </details>
 
-Password yang diberikan oleh user akan dienkripsi sebelum disimpan di users.csv. Fungsi encrypt_password melakukan enkripsi sederhana dengan menggeser setiap karakter dalam password.
+Password yang diberikan oleh user akan dienkripsi sebelum disimpan di users.csv menggunakan fungsi crypt dari library `crypt.h`
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
     // Hash password
@@ -464,9 +474,10 @@ Password yang diberikan oleh user akan dienkripsi sebelum disimpan di users.csv.
 
 ## Fungsi Login di Server
 Fungsi `login_user` pada server bertugas memverifikasi user yang mencoba login. Pertama, fungsi ini meng-hash password input menggunakan `crypt`. Kemudian, file `users.csv` yang berisi data user dibuka dalam mode read. Jika file tidak bisa dibuka, fungsi mengirim pesan error ke client. Selanjutnya, fungsi membaca data user dari file, mengecek apakah username yang diberikan ada di file. Jika ditemukan username yang cocok, fungsi memverifikasi apakah password yang di-hash cocok dengan hash yang disimpan. Jika cocok, data pengguna (ID, username, dan role) disimpan dalam struktur `client`, file ditutup, dan pesan sukses dikirim ke client. Jika password tidak cocok, atau username tidak ditemukan di file, fungsi mengirim pesan error yang sesuai ke client dan menutup file.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //============//
@@ -552,9 +563,10 @@ int login_user(char *username, char *password, client_data *client) {
 ### Client
 
 Setelah user berhasil login, fungsi `handle_account` akan mengirimkan buffer yang berisi informasi login ke server dan menerima respon. Respon dari server akan diparsing untuk memisahkan jenis pesan dan isi pesan. Jika respon adalah pesan biasa ("MSG"), pesan tersebut akan ditampilkan di layar. Jika respon adalah pesan login ("LOGIN"), pesan selamat datang akan ditampilkan. Setelah itu, program masuk ke dalam loop utama di `discorit`, dimana user dapat memasukkan perintah. Setiap perintah yang dimasukkan akan diproses oleh `handle_command`, yang mengirimkan perintah tersebut ke server dan menerima respon. Fungsi `handle_command` juga memproses jenis-jenis respon yang berbeda, seperti pesan biasa, perubahan nama channel atau room, keluar dari channel atau room, perubahan username, permintaan key, atau perintah keluar. Semua ini memungkinkan user untuk berinteraksi dengan server, berpindah channel atau room, mengubah username, dan mengirim serta menerima pesan dengan lancar.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //==================//
@@ -725,9 +737,10 @@ int handle_command(const char *buffer) {
 
 ### Server
 Fungsi `handle_client` bertanggung jawab untuk menangani koneksi dari setiap client yang terhubung ke server chat. Saat dipanggil, fungsi ini menerima socket client sebagai argumen. Pertama, socket client diambil dari argumen dan memori untuk argumen tersebut dibebaskan. Fungsi kemudian menambahkan socket client ke dalam daftar `clients` yang sedang aktif, menggunakan mutex untuk menjaga keamanan akses. Setelah itu, fungsi masuk ke dalam loop yang terus menerus menerima pesan dari client menggunakan `recv`. Setiap pesan yang diterima kemudian disebarkan ke semua client lain dengan fungsi `broadcast_message`. Jika koneksi dengan client terputus, fungsi ini menghapus client dari daftar `clients` dan menutup socket-nya sebelum berakhir.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //===============//
@@ -789,9 +802,10 @@ void *handle_client(void *arg){
 </details>
 
 Setelah berhasil login, handle_input akan menunggu perintah dari client dengan terus mendengarkan data yang dikirimkan melalui socket. Perintah yang diterima akan diproses berdasarkan jenisnya, seperti "EXIT" untuk keluar, "SEE" untuk melihat informasi tertentu, "CREATE" untuk membuat channel atau room baru, dan lain-lain. Sebelum memproses perintah, fungsi ini akan memeriksa keberadaan dan status user untuk memastikan bahwa user tidak di-ban. Jika user di-ban, maka akan mengirimkan pesan error ke client dan menunggu perintah berikutnya. Setiap perintah yang valid akan memanggil fungsi terkait untuk menjalankan aksi yang diminta, seperti create_channel untuk perintah "CREATE CHANNEL" atau send_chat untuk perintah "CHAT". Ini memastikan bahwa setiap interaksi client dengan server ditangani dengan benar sesuai dengan perintah yang diberikan.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail (warning: panjang)</h3></summary>
 
 ```c
 //==============//
@@ -1542,9 +1556,10 @@ void handle_input(void *arg){
 
 ### Channel
 Proses listing channel di DiscorIT dilakukan dengan membaca file channels.csv. Pertama-tama, file channels.csv dibuka untuk membaca daftar channel yang tersedia. Jika file tidak dapat dibuka, sistem akan mengirimkan pesan kesalahan kepada client. Selanjutnya, sistem melakukan iterasi melalui setiap baris dalam file yang berisi ID dan nama channel. Setiap baris dipisahkan menggunakan fscanf, yang mengidentifikasi ID dan nama channel. Jika ada channel yang ditemukan, nama-nama channel tersebut akan digabungkan ke dalam satu string respon yang kemudian dikirimkan ke client. Jika tidak ada channel yang ditemukan, sistem akan mengirimkan pesan bahwa tidak ada channel yang ditemukan. Setelah iterasi selesai, file ditutup dan respon dikirimkan ke client.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //===============//
@@ -1611,9 +1626,10 @@ void list_channel(client_data *client) {
 
 ### Room
 Proses listing room dilakukan dengan membaca semua folder dalam sebuah channel kecuali folder yang bernama "admin". Pertama, sistem memeriksa apakah user sudah berada dalam suatu channel. Jika belum, sistem mengirimkan pesan kesalahan kepada client. Kemudian, sistem menyiapkan path ke channel yang sedang digunakan oleh user dan membuka direktori channel tersebut. Jika direktori tidak bisa dibuka, sistem kembali mengirimkan pesan kesalahan. Setelah berhasil membuka direktori, sistem melakukan iterasi melalui setiap entry di dalam direktori tersebut, melewatkan entry yang bernama "." dan "..". Sistem juga melewatkan entry dengan nama "admin". Untuk setiap entry yang merupakan direktori, sistem menambahkan nama direktori tersebut ke dalam string respon. Setelah iterasi selesai, direktori ditutup dan sistem mengirimkan string respon yang berisi daftar nama-nama room kepada client. Jika tidak ada room yang ditemukan, sistem mengirimkan pesan bahwa tidak ada room yang ditemukan.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //============//
@@ -1707,9 +1723,10 @@ void list_room(client_data *client) {
 
 ### User
 Proses listing user dilakukan dengan membaca file auth.csv dan hanya bisa dijalankan oleh user dengan peran "ROOT". Pertama, sistem memeriksa apakah user yang menjalankan perintah memiliki peran "ROOT". Jika tidak, sistem mengirimkan pesan kesalahan kepada client. Jika user adalah "ROOT", sistem membuka file auth.csv yang menyimpan data pengguna. Jika file tidak bisa dibuka, sistem mengirimkan pesan kesalahan. Setelah file berhasil dibuka, sistem melakukan iterasi melalui setiap baris dalam file, mengambil nama pengguna dan menambahkannya ke dalam string respon. Setelah iterasi selesai, file ditutup dan sistem mengirimkan string respon yang berisi daftar nama pengguna kepada client.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //============//
@@ -1779,7 +1796,7 @@ Proses bergabung ke channel pada DiscorIT diawali dengan pengecekan apakah chann
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 
@@ -1930,9 +1947,10 @@ void join_channel(char *channel, client_data *client) {
 
 ### Room
 Proses join room dimulai dengan pengecekan apakah user mencoba masuk ke room dengan nama "admin", yang tidak diizinkan, dan akan menghasilkan pesan kesalahan. Selanjutnya, sistem memeriksa apakah user sudah berada dalam suatu channel; jika belum, maka akan mengirim pesan kesalahan. Setelah memastikan user berada di dalam channel, sistem memeriksa keberadaan room yang ingin dimasuki user dengan mengecek direktori yang sesuai. Jika room tidak ada, sistem mengirim pesan kesalahan. Jika room ada dan user belum berada dalam room lain, sistem akan mengizinkan user untuk bergabung dengan room tersebut. Nama room akan disimpan dalam atribut room pada client_data, dan tindakan ini akan dicatat dalam log channel. Sebagai respon, sistem akan mengirim pesan ke user bahwa user telah berhasil bergabung dengan room tersebut. Jika user sudah berada dalam room lain, sistem akan mengirim pesan kesalahan bahwa user sudah berada dalam room dan tidak dapat bergabung dengan room baru tanpa keluar dari room sebelumnya.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //===========//
@@ -2016,21 +2034,16 @@ void join_room(char *room, client_data *client) {
 Fungsi `get_timestamp()` adalah fungsi pendukung yang esensial dalam sistem chat karena menghasilkan timestamp yang digunakan untuk merekam waktu pengiriman chat dalam room chat. Saat digunakan dalam konteks aplikasi chat, timestamp ini bertindak sebagai penanda waktu yang menunjukkan kapan chat dikirim. Prosesnya dimulai dengan memanggil fungsi `time(&rawtime)`, yang mengambil waktu saat ini dari sistem dan menyimpannya dalam variabel `rawtime` bertipe `time_t`. Selanjutnya, fungsi `localtime(&rawtime)` mengkonversi waktu dalam `rawtime` ke dalam struktur `struct tm`, yang berisi informasi terperinci tentang tahun, bulan, hari, jam, menit, dan detik dalam zona waktu lokal user.
 
 Setelah memperoleh struktur waktu melalui `localtime`, fungsi `strftime(timestamp, MAX_BUFFER, "%d/%m/%Y %H:%M:%S", timeinfo)` digunakan untuk memformat informasi waktu tersebut ke dalam string `timestamp` dengan format "dd/mm/yyyy HH:MM:SS". String `timestamp` yang dihasilkan kemudian digunakan untuk mencatat waktu pengiriman setiap chat yang dikirimkan dalam room chat. Ini penting karena memungkinkan user untuk melihat urutan chat dan waktu pengirimannya, serta memungkinkan administrator atau user lain untuk memantau aktivitas chat secara kronologis. Oleh karena itu, fungsi `get_timestamp()` tidak hanya menyediakan data waktu tetapi juga mendukung fungsionalitas sistem yang mengandalkan urutan waktu untuk mengelola dan mempresentasikan dialog dalam aplikasi chat.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
     // Get timestamp
     char *timestamp = get_timestamp();
     fprintf(file, "%s,%d,%s,%s\n", timestamp, id+1, client->username, message);
-    ```
-</details>
-
-**Kode**:
-<details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
-
+```
 ```c
 //===============//
 // GET TIMESTAMP //
@@ -2055,7 +2068,7 @@ Proses send chat dimulai dengan pengecekan apakah user berada dalam sebuah room.
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -2124,9 +2137,10 @@ void send_chat(char *message, client_data *client) {
 
 ### See Chat
 Proses see chat dimulai dengan pengecekan apakah user berada dalam sebuah room. Jika user tidak berada dalam room, sistem akan mengirim pesan kesalahan. Jika user berada dalam room, sistem mempersiapkan path file chat.csv di dalam direktori room tersebut dan membuka file tersebut untuk membaca pesan-pesan yang ada. Jika file tidak bisa dibuka, sistem mengirim pesan kesalahan. Namun, jika file berhasil dibuka, sistem akan memeriksa apakah file chat kosong. Jika kosong, sistem mengirim pesan kesalahan bahwa chat kosong. Jika file tidak kosong, sistem membaca isi file chat satu per satu dan menggabungkan pesan-pesan tersebut ke dalam satu respons yang akan dikirim ke user. Jika ukuran respons terlalu besar, proses penggabungan pesan akan dihentikan untuk menghindari pengiriman data yang terlalu besar. Setelah semua pesan yang bisa ditampilkan digabungkan, file ditutup, dan sistem mengirimkan respons berisi pesan-pesan chat ke user.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //===============//
@@ -2213,9 +2227,10 @@ void see_chat(client_data *client) {
 
 ### Edit Chat
 Dalam fungsi `edit_chat`, proses edit dilakukan dengan cara membaca setiap baris dari file `chat.csv` dan menyalinnya ke sebuah file sementara (`temp_file`) kecuali baris yang sesuai dengan ID yang ingin diubah. Pada tahap ini, sistem memeriksa peran user (`client->role`). Jika user memiliki peran `ROOT` atau `ADMIN`, mereka diizinkan untuk mengedit semua pesan dalam room tersebut. Namun, jika user memiliki peran `USER`, sistem memastikan bahwa mereka hanya dapat mengedit pesan yang mereka tulis sendiri dengan memeriksa username yang terkait dengan pesan. Proses ini memastikan bahwa hanya pesan yang sesuai dengan aturan perizinan yang diizinkan untuk diedit, sesuai dengan kebutuhan dan keamanan sistem. Setelah edit selesai, file sementara digunakan untuk mengganti file `chat.csv` asli, dan informasi edit dicatat dalam log sistem sebelum memberikan respons sukses kepada user.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -2344,9 +2359,10 @@ void edit_chat(int edit, char *message, client_data *client){
 
 ### Delete Chat
 Fungsi `del_chat` digunakan untuk menghapus chat dalam sebuah room chat berdasarkan ID tertentu. Pertama, fungsi memeriksa apakah user sedang berada di room chat tersebut. Jika tidak, fungsi akan memberitahu user bahwa mereka harus berada di room chat untuk melakukan penghapusan. Selanjutnya, fungsi membuka file tempat chat disimpan dan membuat file sementara untuk menyimpan hasil edit. Kemudian, fungsi membaca setiap chat dalam file chat. Ketika menemukan chat dengan ID yang sesuai dengan yang diminta untuk dihapus, fungsi memeriksa izin user: jika user adalah admin atau root, mereka dapat menghapus chat apa pun; jika hanya user biasa, mereka hanya bisa menghapus chat yang mereka tulis sendiri. Setelah menemukan chat yang sesuai untuk dihapus, chat tersebut tidak disalin ke file sementara, sehingga dihapus dari file asli. Jika ID yang diminta untuk dihapus tidak ditemukan, fungsi akan memberitahu user bahwa ID tersebut tidak ada dalam room chat. Setelah menghapus chat, file asli chat diperbarui dengan file sementara yang berisi perubahan, dan kegiatan penghapusan dicatat dalam log sistem. Akhirnya, user diberi tahu bahwa penghapusan berhasil dilakukan.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -2480,9 +2496,10 @@ void del_chat(int target, client_data *client) {
 
 ### Check User
 Fungsi `check_user` digunakan untuk mengecek apakah sebuah nama user (username) sudah terdaftar dalam sebuah file. Fungsi ini membuka file yang berisi daftar user, memeriksa setiap username dalam file tersebut, dan memberitahu jika username yang dicari ada atau tidak. Hal ini penting untuk memastikan bahwa hanya user yang terdaftar yang bisa menggunakan fitur-fitur tertentu dalam aplikasi, menjaga keamanan dan integritas data.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //======================//
@@ -2543,7 +2560,7 @@ Untuk mengedit nama pengguna (username) dalam sistem, fungsi `edit_username` mak
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -2643,120 +2660,11 @@ void edit_username(char *username, char *newusername, client_data *client) {
 ```
 </details>
 
-#### Bonus Case 1
-Ketika root melakukan pengeditan username dirinya sendiri, proses ini harus secara otomatis mengupdate data client yang tersimpan di server. Selain itu, program client harus menerima pembaruan ini untuk memperbarui tampilan username yang baru. Hal ini memastikan bahwa semua data dan tampilan username tetap konsisten di seluruh sistem.
-Pada bagian kode edit_username, kita perlu menambahkan logika untuk mengupdate data client di server dan mengirimkan pesan kepada client untuk memperbarui nama pengguna.
+Fungsi edit_username_auth juga membantu untuk mengupdate data nama pengguna di seluruh channel yang terdaftar di auth.csv.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
-
-```c
-//================//
-// EDIT USER NAME //
-//================//
-
-void edit_username(char *username, char *newusername, client_data *client) {
-    int client_fd = client->socket_fd;
-
-    // DEBUGGING
-    printf("[%s][EDIT USERNAME] username: %s, newusername: %s\n", client->username, username, newusername);
-
-    // Prepare response
-    char response[MAX_BUFFER];
-
-    // Check if user is admin or root
-    if (strcmp(client->role, "USER") == 0)
-    // Check if user is editing self
-    if (strcmp(client->username, username) != 0) {
-        // DEBUGGING
-        printf("[%s][EDIT USERNAME] Error: User is not root\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: User is not root");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-    // Open file
-    FILE *file = fopen(users_csv, "r");
-
-    // Open temp file
-    char temp_csv[MAX_BUFFER * 2];
-    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
-    FILE *temp = fopen(temp_csv, "w");
-
-    // Fail if file cannot be opened
-    if (file == NULL) {
-        // DEBUGGING
-        printf("[%s][EDIT USERNAME] Error: Unable to open file\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Unable to open file");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Loop until username matches
-    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
-    int found = 0;
-    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
-        // DEBUGGING
-        printf("[%s][EDIT USERNAME] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
-
-        // Check if username matches
-        if (strcmp(namecheck, username) == 0) {
-            // DEBUGGING
-            printf("[%s][EDIT USERNAME] Success: Username found\n", client->username);
-
-            // Write new username to temp file
-            fprintf(temp, "%d,%s,%s,%s\n", id, newusername, passcheck, role);
-            found = 1;
-            // Update client data
-            strcpy(client->username, newusername);
-            // Inform the client to update their display name
-            char msg[MAX_BUFFER];
-            sprintf(msg, "MSG,Your username has been changed to %s", newusername);
-            send(client_fd, msg, strlen(msg), 0);
-        } else {
-            // Write old username to temp file
-            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
-        }
-    }
-
-    // Close files
-    fclose(file);
-    fclose(temp);
-
-    // Fail if username does not match
-    if (found == 0) {
-        // DEBUGGING
-        printf("[%s][EDIT USERNAME] Error: Username not found\n", client->username);
-
-        // Remove temp file
-        remove(temp_csv);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Username not found");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Remove old file and rename temp file
-    remove(users_csv);
-    rename(temp_csv, users_csv);
-
-    // DEBUGGING
-    printf("[%s][EDIT USERNAME] Success: Main username edited\n", client->username);
-
-    // Call edit_username_auth
-    edit_username_auth(username, newusername, client);
-    return;
-}
-```
-</details>
-Dan Fungsi edit_username_auth mengupdate data nama pengguna di seluruh channel yang terdaftar di auth.csv.
-**Kode**:
-<details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void edit_username_auth(char *username, char *newusername, client_data *client) {
@@ -2804,6 +2712,10 @@ void edit_username_auth(char *username, char *newusername, client_data *client) 
 ```
 </details>
 
+#### Bonus Case 1
+Ketika root melakukan pengeditan username dirinya sendiri, proses ini harus secara otomatis mengupdate data client yang tersimpan di server. Selain itu, program client harus menerima pembaruan ini untuk memperbarui tampilan username yang baru. Hal ini memastikan bahwa semua data dan tampilan username tetap konsisten di seluruh sistem.
+Pada bagian kode edit_username, kita perlu menambahkan logika untuk mengupdate data client di server dan mengirimkan pesan kepada client untuk memperbarui nama pengguna.
+
 #### Bonus Case 2
 
 Ketika seorang user berada dalam sebuah channel, dan seorang root (orang lain) melakukan edit pada nama user, untuk menghindari kerusakan pada sistem, user akan otomatis keluar dari DiscorIT tanpa diban atau keluar dari user terdaftar pada channel. Contoh:
@@ -2818,7 +2730,7 @@ Fungsi `edit_password` digunakan untuk mengizinkan admin atau root untuk menguba
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -2929,7 +2841,7 @@ Fungsi `remove_user` digunakan untuk menghapus pengguna yang terdaftar. Prosesny
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //=============//
@@ -3082,7 +2994,7 @@ Terakhir, fungsi remove_directory digunakan untuk menghapus direktori beserta is
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -3149,9 +3061,10 @@ void remove_directory(char *path) {
 
 ### Check Channel Permission
 Fungsi `check_channel_perms` digunakan untuk memeriksa apakah seorang user memiliki izin khusus (seperti admin atau root) di dalam sebuah channel tertentu. Pertama, fungsi ini membuka file `channels_csv` untuk membaca daftar channel yang tersedia. Jika file tersebut tidak bisa dibuka, fungsi ini akan mencatat pesan error dan mengembalikan nilai -1. Selanjutnya, fungsi ini akan membaca setiap nama channel dalam file tersebut dan membandingkannya dengan nama channel yang dituju (`target`). Jika nama channel cocok, fungsi akan membuka file `auth.csv` di dalam direktori channel tersebut untuk memeriksa izin user. Di dalam file `auth.csv`, fungsi ini mencari nama user dan perannya. Jika menemukan bahwa user adalah admin atau root, fungsi ini akan menutup semua file yang terbuka dan mengembalikan nilai 1, menunjukkan bahwa user memiliki izin khusus. Jika tidak menemukan izin khusus untuk user tersebut, fungsi akan menutup semua file yang terbuka dan mengembalikan nilai 0, menunjukkan bahwa user tidak memiliki izin khusus.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //=====================//
@@ -3238,7 +3151,7 @@ Fungsi `create_channel` bertujuan untuk membuat channel baru dalam sistem. Perta
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -3305,9 +3218,10 @@ void create_channel(char *channel, char *key, client_data *client) {
 
 ### Edit Channel
 Fungsi `edit_channel` bertujuan untuk mengubah nama channel yang sudah ada. Proses ini dimulai dengan memeriksa izin pengguna untuk channel yang akan diubah menggunakan fungsi `check_channel_perms`. Jika izin pengguna tidak mencukupi, fungsi akan mengirim pesan error ke client. Jika izin mencukupi, fungsi akan membuka file `channels.csv` dan file sementara untuk menyimpan data yang telah dimodifikasi. Selanjutnya, fungsi akan membaca setiap entri di `channels.csv` dan membandingkannya dengan nama channel yang akan diubah. Jika ditemukan kecocokan, fungsi akan menulis entri baru dengan nama channel yang baru ke file sementara. Jika tidak ada kecocokan, entri lama akan ditulis ulang ke file sementara. Setelah semua entri diproses, file asli `channels.csv` akan dihapus dan file sementara akan diganti namanya menjadi `channels.csv`. Kemudian, fungsi akan memperbarui nama direktori channel yang diubah dengan memanggil `rename_directory`. Jika channel yang diubah adalah channel yang sedang digunakan oleh client, fungsi juga akan memperbarui nama channel di data client dan mencatat perubahan ini ke dalam log dengan memanggil `write_log`. Terakhir, fungsi akan mengirim pesan sukses ke client yang menunjukkan bahwa nama channel telah berhasil diubah.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //==============//
@@ -3439,9 +3353,10 @@ void edit_channel(char *changed, char *new, client_data *client){
 
 #### Bonus Case 1
 Dalam skenario ini, ketika admin atau root mengubah nama channel yang sedang digunakan, fungsi `edit_channel` secara otomatis memperbarui data client dan mengirim pesan terkait perubahan tersebut. Proses dimulai dengan pemeriksaan izin menggunakan `check_channel_perms`, memastikan pengguna memiliki hak untuk mengedit channel; jika tidak, pesan error dikirim ke client dan fungsi dihentikan. Selanjutnya, fungsi membuka file `channels.csv` dan file sementara untuk menulis data yang dimodifikasi, membaca setiap entri di `channels.csv`, dan membandingkan dengan nama channel yang akan diubah. Jika ditemukan kecocokan, entri baru dengan nama channel yang diubah ditulis ke file sementara; jika tidak, entri lama ditulis ulang. Setelah semua entri diproses, file asli `channels.csv` dihapus dan file sementara diganti namanya menjadi `channels.csv`. Fungsi kemudian mengubah nama direktori channel lama menjadi nama channel baru menggunakan `rename_directory`. Jika nama channel yang diubah adalah nama channel yang sedang digunakan oleh client, data client diperbarui dengan nama channel baru dan pesan log dicatat. Akhirnya, fungsi mengirim pesan ke client yang memberitahukan perubahan nama channel.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 if (strcmp(client->channel, changed) == 0) {
@@ -3465,50 +3380,14 @@ if (strcmp(client->channel, changed) == 0) {
 </details>
 
 #### Bonus Case 2
-Dalam skenario ini, ketika seorang admin atau root mengubah nama channel yang sedang digunakan oleh user lain, fungsi `edit_channel` memastikan bahwa user yang berada di channel lama akan keluar dari channel tersebut secara aman sebelum proses penggantian nama dilanjutkan. Setelah melakukan pemeriksaan izin dan memperbarui file sementara seperti pada Bonus Case 1, fungsi mengubah nama direktori channel lama menjadi nama channel baru dengan menggunakan `rename_directory`. Selanjutnya, fungsi memeriksa apakah ada user lain yang masih berada di dalam channel yang namanya akan diubah. Jika ada, mereka akan dikeluarkan dari channel tersebut dengan mengirim pesan keluar yang mengosongkan nama channel dan room yang mereka gunakan, sehingga memastikan tidak ada konflik command yang terjadi saat proses perubahan nama channel sedang dilakukan.
-**Kode**:
-<details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
-
-```c
-// Check if edited channel is the current channel
-if (strcmp(client->channel, changed) == 0) {
-    // DEBUGGING
-    printf("[%s][EDIT CHANNEL] Channel name self-changed\n", client->username);
-
-    // Update client channel
-    strcpy(client->channel, new);
-
-    // Write to log
-    char message[MAX_BUFFER * 2];
-    sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
-    write_log(new, message);
-
-    // Send response to client
-    sprintf(response, "CHANNEL,Channel name changed to %s,%s", new, new);
-    send(client_fd, response, strlen(response), 0);
-    return;
-} else {
-    // DEBUGGING
-    printf("[%s][EDIT CHANNEL] Channel name changed for another user\n", client->username);
-
-    // If another user is in the channel, send exit message
-    sprintf(response, "EXIT,Channel %s renamed,CHANNEL", changed);
-    send(client_fd, response, strlen(response), 0);
-
-    // Write to log
-    char message[MAX_BUFFER * 2];
-    sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
-    write_log(new, message);
-}
-```
-</details>
+Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan oleh user lain, untuk menghindari konflik command, maka user yang sedang berada di dalam nama channel lama akan keluar dari channel secara aman sebelum command berikutnya terkirim. Hal ini dilakukan secara tidak langsung menggunakan fungsi `check_ban`
 
 ### Del Channel
 Fungsi delete_channel digunakan untuk menghapus channel yang ada. Proses ini dimulai dengan memeriksa izin pengguna untuk channel yang akan dihapus menggunakan fungsi check_channel_perms. Jika izin pengguna tidak mencukupi, fungsi akan mengirim pesan error ke client. Jika izin mencukupi, fungsi akan membuka file channels.csv dan file sementara untuk menyimpan data yang telah dimodifikasi. Selanjutnya, fungsi akan membaca setiap entri di channels.csv dan membandingkannya dengan nama channel yang akan dihapus. Jika tidak ditemukan kecocokan, entri lama akan ditulis ulang ke file sementara. Jika ditemukan kecocokan, entri tersebut tidak akan ditulis ulang, menandakan bahwa channel tersebut telah dihapus. Setelah semua entri diproses, file asli channels.csv akan dihapus dan file sementara akan diganti namanya menjadi channels.csv. Kemudian, fungsi akan menghapus direktori channel yang dihapus dengan memanggil remove_directory. Jika channel yang dihapus adalah channel yang sedang digunakan oleh client, fungsi juga akan memperbarui data client untuk mengosongkan nama channel dan room yang sedang digunakan, serta mengirim pesan keluar ke client. Terakhir, fungsi akan mengirim pesan sukses ke client yang menunjukkan bahwa channel telah berhasil dihapus.
+
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 //================//
@@ -3634,268 +3513,13 @@ void delete_channel(char *channel, client_data *client) {
 ```
 </details>
 
-### Bonus Case 1: 
+#### Bonus Case 1
 
-**Admin Menghapus Room yang Sedang Digunakan**
+Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan pada saat itu, maka secara otomatis akan melakukan update pada client data dan mengirim pesan pada client atas perubahannya.
 
-**Penjelasan**: Ketika seorang admin atau root menghapus room yang sedang digunakan oleh klien, maka server harus mengirim pesan kepada klien yang berada di dalam room tersebut untuk memperbarui status room mereka menjadi kosong.
+#### Bonus Case 2
 
-**Alur**:
-1. **Admin menghapus room**: Admin mengirim perintah ke server untuk menghapus room.
-2. **Server memproses penghapusan room**:
-   - Server memeriksa apakah ada klien yang menggunakan room tersebut.
-   - Jika ada, server mengirim pesan kepada klien untuk mengosongkan variabel `room`.
-3. **Klien menerima pesan dan memperbarui status room**:
-   - Klien menerima pesan dari server.
-   - Klien mengosongkan variabel `room` dan menampilkan pesan kepada pengguna tentang perubahan status room.
-
-### Bonus Case 2: 
-
-**Mencegah Penghapusan Room "admin"**
-
-**Penjelasan**: Server melarang penghapusan room dengan nama "admin" karena di dalam setiap channel terdapat folder "admin" yang berisi `auth.csv` dan `user.log`.
-
-**Alur**:
-1. **Periksa room yang akan dihapus**: Server memeriksa nama room yang akan dihapus.
-2. **Tolak permintaan jika room adalah "admin"**: Jika nama room adalah "admin", server menolak permintaan penghapusan.
-
-**Kode**:
-<details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
-
-   ```c
-void delete_room(char *room, client_data *client) {
-    int client_fd = client->socket_fd;
-
-    // Prepare response
-    char response[MAX_BUFFER];
-
-    // Check if user is trying to delete admin
-    if (strcmp(room, "admin") == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: Invalid room name\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Invalid room name");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Check if user is in a channel
-    if (strlen(client->channel) == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: User is not in a channel\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: User is not in a channel");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Check permissions
-    int perms = check_channel_perms(client->channel, client);
-    if (perms == -1) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: Unable to check permissions\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Unable to check permissions");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    } else if (perms == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: User is not privileged\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: User is not privileged");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    } else if (perms == 1) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] User is privileged\n", client->username);
-    }
-
-    // Prepare room path
-    char path_room[MAX_BUFFER * 2];
-    sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
-
-    // Check if room exists
-    struct stat statbuf;
-    if (stat(path_room, &statbuf) == -1) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: Room does not exist\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Room does not exist");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Remove room directory
-    remove_directory(path_room);
-
-    // Check if deleted room is the current room
-    if (strcmp(client->room, room) == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Room current deleted %s\n", client->username, room);
-
-
-        // Update client room
-        strcpy(client->room, "");
-
-        // Write to log
-        char message[MAX_BUFFER * 2];
-        sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
-        write_log(client->channel, message);
-
-        // Send response to client
-        sprintf(response, "EXIT,Room %s deleted,ROOM %s", room, room);
-        
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // DEBUGGING
-    printf("[%s][DELETE ROOM] Room deleted\n", client->username);
-
-    // Write to log
-    char message[MAX_BUFFER * 2];
-    sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
-    write_log(client->channel, message);
-
-    // Send response to client
-    sprintf(response, "MSG,Success: Room %s deleted", room);
-    send(client_fd, response, strlen(response), 0);
-    return;
-}
-void delete_all_rooms(client_data *client) {
-    int client_fd = client->socket_fd;
-
-    // Prepare response
-    char response[MAX_BUFFER];
-
-    // Check if user is in a channel
-    if (strlen(client->channel) == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ALL ROOMS] Error: User is not in a channel\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: User is not in a channel");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Check permissions
-    int perms = check_channel_perms(client->channel, client);
-    if (perms == -1) {
-        // DEBUGGING
-        printf("[%s][DELETE ALL ROOMS] Error: Unable to check permissions\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Unable to check permissions");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    } else if (perms == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ALL ROOMS] Error: User is not privileged\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: User is not privileged");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    } else if (perms == 1) {
-        // DEBUGGING
-        printf("[%s][DELETE ALL ROOMS] User is privileged\n", client->username);
-    }
-
-    // Prepare channel path
-    char path_channel[MAX_BUFFER * 2];
-    sprintf(path_channel, "%s/%s", cwd, client->channel);
-
-
-    // Open channel directory
-    DIR *dir = opendir(path_channel);
-
-    // Fail if directory cannot be opened
-    if (dir == NULL) {
-        // DEBUGGING
-        printf("[%s][DELETE ALL ROOMS] Error: Unable to open directory\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Unable to open directory");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Loop through directory
-    int rooms_found = 0;
-    struct dirent *entry;
-    while ((entry = readdir(dir)) != NULL) {
-        // Skip . and ..
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
-
-        // DEBUGGING
-        printf("[%s][DELETE ALL ROOMS] Room: %s\n", client->username, entry->d_name);
-
-        // Skip admin directory
-        if (strcmp(entry->d_name, "admin") == 0) continue;
-
-        // Prepare entry path
-        char entry_path[MAX_BUFFER * 3];
-        sprintf(entry_path, "%s/%s", path_channel, entry->d_name);
-
-        // Check if entry is a directory to be deleted
-        struct stat statbuf;
-        if (stat(entry_path, &statbuf) == -1) continue;
-        if (S_ISDIR(statbuf.st_mode)) {
-            // Increment rooms found
-            rooms_found++;
-
-            // Remove room directory
-            remove_directory(entry_path);
-        }
-    }
-
-    // Close directory
-    closedir(dir);
-
-    // DEBUGGING
-    printf("[%s][DELETE ALL ROOMS] Rooms found: %d\n", client->username, rooms_found);
-
-    // Write to log
-    char message[MAX_BUFFER * 2];
-    sprintf(message, "%s deleted all rooms of channel \"%s\"\n", client->username, client->channel);
-    write_log(client->channel, message);
-
-    // Check if user is in a room
-    if (strlen(client->room) != 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ALL ROOMS] User is in a room\n", client->username);
-
-        // Update client room
-        strcpy(client->room, "");
-
-        // Send response to client
-        sprintf(response, "EXIT,All rooms deleted,ROOM");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Send response to client
-    if (rooms_found == 0) {
-        sprintf(response, "MSG,No rooms found");
-        send(client_fd, response, strlen(response), 0);
-    } else {
-        sprintf(response, "MSG,Success: All rooms deleted");
-        send(client_fd, response, strlen(response), 0);
-    }
-
-    return;
-}
-
-```
-</details>
-
+Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan oleh user lain, untuk menghindari konflik command, maka user yang sedang berada di dalam nama channel lama akan keluar dari channel secara aman sebelum command berikutnya terkirim.
 
 ### Delete Room All
 **Penjelasan**: Fungsi `delete_all_rooms` digunakan untuk menghapus semua room yang ada dalam sebuah channel, kecuali room "admin". Fungsi ini juga memastikan bahwa user memiliki izin yang cukup untuk melakukan tindakan ini dan memperbarui status user jika mereka berada di dalam salah satu room yang dihapus.
@@ -3970,115 +3594,9 @@ void delete_all_rooms(client_data *client) {
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
    
-   ```c
-
-   void delete_room(char *room, client_data *client) {
-    int client_fd = client->socket_fd;
-
-    // Prepare response
-    char response[MAX_BUFFER];
-
-    // Check if user is trying to delete admin
-    if (strcmp(room, "admin") == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: Invalid room name\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Invalid room name");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Check if user is in a channel
-    if (strlen(client->channel) == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: User is not in a channel\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: User is not in a channel");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Check permissions
-    int perms = check_channel_perms(client->channel, client);
-    if (perms == -1) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: Unable to check permissions\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Unable to check permissions");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    } else if (perms == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: User is not privileged\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: User is not privileged");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    } else if (perms == 1) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] User is privileged\n", client->username);
-    }
-
-    // Prepare room path
-    char path_room[MAX_BUFFER * 2];
-    sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
-
-    // Check if room exists
-    struct stat statbuf;
-    if (stat(path_room, &statbuf) == -1) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Error: Room does not exist\n", client->username);
-
-        // Send response to client
-        sprintf(response, "MSG,Error: Room does not exist");
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // Remove room directory
-    remove_directory(path_room);
-
-    // Check if deleted room is the current room
-    if (strcmp(client->room, room) == 0) {
-        // DEBUGGING
-        printf("[%s][DELETE ROOM] Room current deleted %s\n", client->username, room);
-
-
-        // Update client room
-        strcpy(client->room, "");
-
-        // Write to log
-        char message[MAX_BUFFER * 2];
-        sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
-        write_log(client->channel, message);
-
-        // Send response to client
-        sprintf(response, "EXIT,Room %s deleted,ROOM %s", room, room);
-        
-        send(client_fd, response, strlen(response), 0);
-        return;
-    }
-
-    // DEBUGGING
-    printf("[%s][DELETE ROOM] Room deleted\n", client->username);
-
-    // Write to log
-    char message[MAX_BUFFER * 2];
-    sprintf(message, "%s deleted room \"%s\"\n", client->username, room);
-    write_log(client->channel, message);
-
-    // Send response to client
-    sprintf(response, "MSG,Success: Room %s deleted", room);
-    send(client_fd, response, strlen(response), 0);
-    return;
-}
-
+```c
 void delete_all_rooms(client_data *client) {
     int client_fd = client->socket_fd;
 
@@ -4207,7 +3725,6 @@ void delete_all_rooms(client_data *client) {
 ```
 </details>
 
- 
 
 ### Ban
 #### Check Ban
@@ -4244,13 +3761,11 @@ Fungsi `check_ban` bertujuan untuk memeriksa apakah user yang terhubung ke serve
    - Cetak pesan sukses untuk debugging yang menunjukkan bahwa user tidak dibanned.
    - Kembalikan nilai 0 untuk menunjukkan bahwa user tidak dibanned.
 
-   
-
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
-   ```c
+```c
 int check_ban(client_data *client) {
     int client_fd = client->socket_fd;
 
@@ -4310,7 +3825,6 @@ int check_ban(client_data *client) {
 }
 ```
 </details>
-
 
 ## Ban User
 #### Penjelasan:
@@ -4411,11 +3925,9 @@ Fungsi `unban_user` digunakan untuk menghapus status banned dari user tertentu d
     - Tulis pesan ke log bahwa user telah di-unbanned dari channel.
     - Kirim pesan sukses ke klien.
 
-
-
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
    ```c
 void ban_user(char *username, client_data *client) {
@@ -4719,7 +4231,7 @@ void remove_user(char *username, client_data *client) {
 
 ### User
 #### See User
-**Penjelasan**: Fungsi `list_user` digunakan untuk menampilkan daftar semua pengguna yang ada dalam sistem. Hanya pengguna dengan peran "ROOT" yang diizinkan untuk menggunakan fungsi ini.
+**Penjelasan**: Fungsi `list_user` digunakan untuk menampilkan daftar semua pengguna yang ada dalam sistem. Hanya pengguna dengan peran "ROOT" yang diizinkan untuk menggunakan fungsi ini. Fungsi ini sering digunakan saat development sebagai alat untuk testing.
 
 **Alur**:
 1. **Validasi Root**:
@@ -4739,7 +4251,7 @@ void remove_user(char *username, client_data *client) {
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void list_user(client_data *client) {
@@ -4796,7 +4308,6 @@ void list_user(client_data *client) {
 ```
 </details>
 
-
 #### Edit Profile Self (Username)
 **Penjelasan**: Fungsi `edit_username` digunakan untuk mengedit nama pengguna yang ada dalam sistem, asalkan pengguna yang melakukan perubahan adalah admin atau root, atau pengguna yang sama yang ingin mengedit namanya sendiri.
 
@@ -4824,7 +4335,7 @@ void list_user(client_data *client) {
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void edit_username(char *username, char *newusername, client_data *client) {
@@ -4948,7 +4459,7 @@ void edit_username(char *username, char *newusername, client_data *client) {
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
 void edit_password(char *username, char *newpassword, client_data *client) {
@@ -5199,7 +4710,7 @@ Selanjutnya, setiap perintah yang mengandung `-channel` diikuti dengan nama chan
 
 **Kode**:
 <details>
-<summary><h3>Klik untuk melihat detail</h3>></summary>
+<summary><h3>Klik untuk melihat detail</h3></summary>
 
 ```c
  #include <stdio.h>
