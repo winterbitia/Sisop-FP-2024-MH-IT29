@@ -2930,8 +2930,134 @@ void edit_password(char *username, char *newpassword, client_data *client) {
 </details>
 
 ### Remove User Account
+Fungsi `remove_user` digunakan untuk menghapus pengguna yang terdaftar. Prosesnya mirip dengan fungsi `edit_username` namun dengan perbedaan bahwa pengguna dihapus dari sistem. Pertama, fungsi memeriksa apakah pengguna yang meminta penghapusan adalah root atau admin, dan bukan mencoba menghapus dirinya sendiri. Kemudian, fungsi membuka file yang berisi daftar pengguna (`users_csv`) dan mencari pengguna yang akan dihapus. Jika pengguna ditemukan dan bukan root, data pengguna tersebut tidak disalin ke file sementara, sehingga dihapus dari sistem. Jika pengguna yang dicari tidak ditemukan, proses gagal dan pengguna yang meminta penghapusan diberitahu. Setelah proses penghapusan dari file utama selesai, fungsi memanggil `del_username_auth` untuk menghapus pengguna tersebut dari semua file otorisasi (`auth.csv`) yang ada di setiap channel, memastikan bahwa pengguna benar-benar dihapus dari seluruh sistem.
 
-alurnya sama kaya edit username cuman ini delete dari temp_file dan semua auth.csv juga.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//=============//
+// REMOVE USER //
+//=============//
+
+void remove_user(char *username, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][REMOVE USER] username: %s\n", client->username, username);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is trying to remove self
+    if (strcmp(client->username, username) == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: User is trying to remove self\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is trying to remove self");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER * 2];
+    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop until username matches
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // Check if role is not root
+            if (strcmp(role, "ROOT") == 0) {
+                // DEBUGGING
+                printf("[%s][REMOVE USER] Error: User is root\n", client->username);
+
+                // Close files
+                fclose(file);
+                fclose(temp);
+
+                // Remove temp file
+                remove(temp_csv);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is root");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            // DEBUGGING
+            printf("[%s][REMOVE USER] Success: Username found\n", client->username);
+            found = 1;
+        } else {
+            // Write old username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][REMOVE USER] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(users_csv);
+    rename(temp_csv, users_csv);
+
+    // DEBUGGING
+    printf("[%s][REMOVE USER] Success: User removed\n", client->username);
+
+    // Call del_username_auth
+    del_username_auth(username, client);
+    return;
+}
+```
+</details>
 
 #### Bonus Case 1
 
@@ -2949,32 +3075,565 @@ Ketika seorang user berada dalam sebuah channel, dan seorang root (orang lain) m
 ## Admin Actions
 
 ### Fungsi Pendukung
+Pertama, fungsi make_directory digunakan untuk membuat direktori baru di sistem. Ketika fungsi ini dipanggil, ia mencoba membuat direktori dengan jalur yang diberikan dan memberikan izin penuh (baca, tulis, dan eksekusi) kepada semua pengguna. Jika proses pembuatan direktori gagal dan penyebab kegagalannya bukan karena direktori sudah ada, fungsi ini akan menampilkan pesan error dan berhenti.
 
-jelasin make directory, rename directory, sama remove directory
+Selanjutnya, ada fungsi rename_directory yang bertugas mengganti nama direktori. Fungsi ini memulai dengan membuat proses anak menggunakan fork. Jika proses fork gagal, fungsi ini akan menampilkan pesan error dan berhenti. Jika berhasil, proses anak akan menjalankan perintah mv untuk mengganti nama direktori sesuai dengan jalur baru yang diberikan. Sementara itu, proses induk akan menunggu hingga proses anak selesai bekerja.
+
+Terakhir, fungsi remove_directory digunakan untuk menghapus direktori beserta isinya. Sama seperti fungsi rename_directory, fungsi ini juga membuat proses anak menggunakan fork. Jika fork gagal, fungsi ini akan menampilkan pesan error dan berhenti. Proses anak kemudian menjalankan perintah rm -rf untuk menghapus direktori dan semua isinya. Proses induk akan menunggu hingga proses anak selesai sebelum kembali ke tugas lainnya.
+
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//================//
+// MAKE DIRECTORY //
+//================//
+
+void make_directory(char *path) {
+    // Create directory
+    if (mkdir(path, 0777) == -1)
+    // Fail if directory cannot be created
+    if (errno != EEXIST) {
+        printf("[MKDIR] Error: Unable to create directory\n");
+        return;
+    }
+}
+
+//==================//
+// RENAME DIRECTORY //
+//==================//
+
+void rename_directory(char *path, char *newpath) {
+    // Create fork
+    int pid = fork();
+    // Return if fork fails
+    if (pid < 0) {
+        printf("[RENAME] Error: Unable to fork\n");
+        return;
+    }
+
+    // Execute mv
+    if (pid == 0) {
+        execlp("mv", "mv", path, newpath, NULL);
+    }
+
+    // Wait for child process
+    wait(NULL);
+    return;
+}
+
+//==================//
+// REMOVE DIRECTORY //
+//==================//
+
+void remove_directory(char *path) {
+    // Create fork
+    int pid = fork();
+    // Return if fork fails
+    if (pid < 0) {
+        printf("[RMDIR] Error: Unable to fork\n");
+        return;
+    }
+
+    // Execute rm -rf
+    if (pid == 0) {
+        execlp("rm", "rm", "-rf", path, NULL);
+    }
+
+    // Wait for child process
+    wait(NULL);
+    return;
+}
+```
+</details>
 
 ### Check Channel Permission
+Fungsi `check_channel_perms` digunakan untuk memeriksa apakah seorang user memiliki izin khusus (seperti admin atau root) di dalam sebuah channel tertentu. Pertama, fungsi ini membuka file `channels_csv` untuk membaca daftar channel yang tersedia. Jika file tersebut tidak bisa dibuka, fungsi ini akan mencatat pesan error dan mengembalikan nilai -1. Selanjutnya, fungsi ini akan membaca setiap nama channel dalam file tersebut dan membandingkannya dengan nama channel yang dituju (`target`). Jika nama channel cocok, fungsi akan membuka file `auth.csv` di dalam direktori channel tersebut untuk memeriksa izin user. Di dalam file `auth.csv`, fungsi ini mencari nama user dan perannya. Jika menemukan bahwa user adalah admin atau root, fungsi ini akan menutup semua file yang terbuka dan mengembalikan nilai 1, menunjukkan bahwa user memiliki izin khusus. Jika tidak menemukan izin khusus untuk user tersebut, fungsi akan menutup semua file yang terbuka dan mengembalikan nilai 0, menunjukkan bahwa user tidak memiliki izin khusus.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin ini juga fungsi pendukung
+```c
+//=====================//
+// CHECK CHANNEL PERMS //
+//=====================//
+
+int check_channel_perms(char *target, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Check channel permissions
+    FILE *file_channel = fopen(channels_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file_channel == NULL) {
+        // DEBUGGING
+        printf("[%s][CHECK PERMS] Error: Unable to open file\n", client->username);
+
+        // Return -1 if file cannot be opened
+        return -1;
+    }
+
+    // Loop through channel name to find permissions
+    char channel[MAX_BUFFER];
+    while (fscanf(file_channel, "%*d,%[^,],%*s", channel) == 1) {
+        // DEBUGGING
+        printf("[%s][CHECK PERMS] Compare: %s-%s\n", client->username, target, channel);
+
+        // Check channel name
+        if (strcmp(channel, target) == 0) {
+            // Prepare auth path
+            char path_auth[MAX_BUFFER * 3];
+            sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
+
+            // Open auth file
+            FILE *file_auth = fopen(path_auth, "r");
+
+            // Fail if file cannot be opened
+            if (file_auth == NULL) {
+                // DEBUGGING
+                printf("[%s][CHECK PERMS] Error: Unable to open file\n", client->username);
+
+                // Return -1 if file cannot be opened
+                return -1;
+            }
+
+            // Loop through id, username, and role
+            char namecheck[MAX_BUFFER], role[8];
+            while (fscanf(file_auth, "%*d,%[^,],%s", namecheck, role) == 2) {
+                // DEBUGGING
+                printf("[%s][CHECK PERMS] Client username: %s, role: %s\n", client->username, namecheck, role);
+
+                // Check if username matches
+                if (strcmp(namecheck, client->username) == 0)
+                // Check if role is root/admin
+                if (strcmp(role, "ROOT") == 0 || strcmp(role, "ADMIN") == 0) {
+                    // DEBUGGING
+                    printf("[%s][CHECK PERMS] Error: User is privileged\n", client->username);
+
+                    // Close files
+                    fclose(file_auth);
+                    fclose(file_channel);
+
+                    // Return 1 if user is privileged
+                    return 1;
+                }
+            }
+
+            // Close auth file
+            fclose(file_auth);
+        }
+    }
+
+    // Close channel file
+    fclose(file_channel);
+
+    // Return 0 if user is not privileged
+    return 0;
+}
+```
+</details>
 
 ### Create Channel
+Fungsi `create_channel` bertujuan untuk membuat channel baru dalam sistem. Pertama-tama, fungsi ini memeriksa apakah channel yang diminta sudah ada dengan memanggil fungsi `check_channel`. Jika channel sudah ada, fungsi akan mengirimkan pesan error ke client. Jika tidak, fungsi akan membuka file `channels.csv` dan menambahkan entri baru untuk channel tersebut, termasuk meng-hash key yang diberikan menggunakan `crypt` dengan `HASHCODE`. Setelah itu, fungsi ini membuat direktori baru untuk channel, direktori admin di dalamnya, dan file `auth.csv` di dalam direktori admin. Direktori dan file ini dibuat dengan memanggil fungsi `make_directory` dan `admin_init_channel`. Setelah semua direktori dan file yang diperlukan dibuat, fungsi ini mencatat kejadian pembuatan channel ke dalam log dengan memanggil fungsi `write_log`. Terakhir, fungsi ini mengirimkan pesan sukses ke client yang menunjukkan bahwa channel telah berhasil dibuat, dengan pemberi channel sebagai admin.
 
-alurnya masukin ke csv, ngehash key, bikin folder baru, terus bikin auth.log yang isinya pembuat channel sbg admin
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//================//
+// CREATE CHANNEL //
+//================//
+
+void create_channel(char *channel, char *key, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if channel id exists
+    int id = check_channel(channel, client);
+
+    // DEBUGGING
+    printf("[%s][CREATE CHANNEL] id: %d\n", client->username, client->id);
+
+    // Fail if channel already exists
+    if (id == -2) {
+        // DEBUGGING
+        printf("[%s][CREATE CHANNEL] Error: Channel already exists\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Channel %s already exists", channel);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open file
+    FILE *file = fopen(channels_csv, "a+");
+
+    // Hash key
+    char hash[MAX_BUFFER];
+    strcpy(hash,crypt(key, HASHCODE));
+
+    // Write to file
+    fprintf(file, "%d,%s,%s\n", id+1, channel, hash);
+    fclose(file);
+
+    // Create directory and all related preparations
+    char path[MAX_BUFFER * 2], path_admin[MAX_BUFFER * 2], path_auth[MAX_BUFFER * 2];
+    sprintf(path, "%s/%s", cwd, channel);
+    sprintf(path_admin, "%s/%s/admin", cwd, channel);
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
+    make_directory(path);
+    make_directory(path_admin);
+    admin_init_channel(path_auth, client);
+
+    // DEBUGGING
+    printf("[%s][CREATE CHANNEL] Success: Channel %s created\n", client->username, channel);
+
+    // Write to log
+    char message[MAX_BUFFER * 2];
+    sprintf(message, "%s created channel \"%s\"\n", client->username, channel);
+    write_log(channel, message);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Channel %s created", channel);
+    send(client_fd, response, strlen(response), 0);
+}
+```
+</details>
 
 ### Edit Channel
+Fungsi `edit_channel` bertujuan untuk mengubah nama channel yang sudah ada. Proses ini dimulai dengan memeriksa izin pengguna untuk channel yang akan diubah menggunakan fungsi `check_channel_perms`. Jika izin pengguna tidak mencukupi, fungsi akan mengirim pesan error ke client. Jika izin mencukupi, fungsi akan membuka file `channels.csv` dan file sementara untuk menyimpan data yang telah dimodifikasi. Selanjutnya, fungsi akan membaca setiap entri di `channels.csv` dan membandingkannya dengan nama channel yang akan diubah. Jika ditemukan kecocokan, fungsi akan menulis entri baru dengan nama channel yang baru ke file sementara. Jika tidak ada kecocokan, entri lama akan ditulis ulang ke file sementara. Setelah semua entri diproses, file asli `channels.csv` akan dihapus dan file sementara akan diganti namanya menjadi `channels.csv`. Kemudian, fungsi akan memperbarui nama direktori channel yang diubah dengan memanggil `rename_directory`. Jika channel yang diubah adalah channel yang sedang digunakan oleh client, fungsi juga akan memperbarui nama channel di data client dan mencatat perubahan ini ke dalam log dengan memanggil `write_log`. Terakhir, fungsi akan mengirim pesan sukses ke client yang menunjukkan bahwa nama channel telah berhasil diubah.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-seperti biasa, pake teknik edit biasanya, cuman di akhir ada juga rename directory
+```c
+//==============//
+// EDIT CHANNEL //
+//==============//
+
+void edit_channel(char *changed, char *new, client_data *client){
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check permissions
+    int perms = check_channel_perms(changed, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] User is privileged\n", client->username);
+    }
+
+    // Open channel file
+    FILE *file = fopen(channels_csv, "r");
+
+    // Open temp channel file
+    char temp[MAX_BUFFER * 2];
+    sprintf(temp, "%s/.temp_channel.csv", cwd);
+    FILE *file_temp = fopen(temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id, channel, and key
+    int id; char channel[MAX_BUFFER], key[MAX_BUFFER];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%s", &id, channel, key) == 3) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] id: %d, channel: %s, key: %s\n", client->username, id, channel, key);
+
+        // Write to temp file
+        if (strcmp(changed, channel) == 0) {
+            found = 1;
+            fprintf(file_temp, "%d,%s,%s\n", id, new, key);
+        } else {
+            fprintf(file_temp, "%d,%s,%s\n", id, channel, key);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Fail if channel is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Error: Channel not found\n", client->username);
+
+        // Remove temp file
+        remove(temp);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Channel not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old channel file and rename temp file
+    remove(channels_csv);
+    rename(temp, channels_csv);
+
+    // Update folder name
+    char path_channel[MAX_BUFFER * 2];
+    sprintf(path_channel, "%s/%s", cwd, changed);
+    char path_new[MAX_BUFFER * 2];
+    sprintf(path_new, "%s/%s", cwd, new);
+    rename_directory(path_channel, path_new);
+
+    // Check if edited channel is the current channel
+    if (strcmp(client->channel, changed) == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHANNEL] Channel name self-changed\n", client->username);
+
+        // Update client channel
+        strcpy(client->channel, new);
+
+        // Write to log
+        char message[MAX_BUFFER * 2];
+        sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
+        write_log(new, message);
+
+        // Send response to client
+        sprintf(response, "CHANNEL,Channel name changed to %s,%s", new, new);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } 
+    
+    // DEBUGGING
+    printf("[%s][EDIT CHANNEL] Channel name changed\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Channel name changed to %s", new);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 #### Bonus Case 1
+Dalam skenario ini, ketika admin atau root mengubah nama channel yang sedang digunakan, fungsi `edit_channel` secara otomatis memperbarui data client dan mengirim pesan terkait perubahan tersebut. Proses dimulai dengan pemeriksaan izin menggunakan `check_channel_perms`, memastikan pengguna memiliki hak untuk mengedit channel; jika tidak, pesan error dikirim ke client dan fungsi dihentikan. Selanjutnya, fungsi membuka file `channels.csv` dan file sementara untuk menulis data yang dimodifikasi, membaca setiap entri di `channels.csv`, dan membandingkan dengan nama channel yang akan diubah. Jika ditemukan kecocokan, entri baru dengan nama channel yang diubah ditulis ke file sementara; jika tidak, entri lama ditulis ulang. Setelah semua entri diproses, file asli `channels.csv` dihapus dan file sementara diganti namanya menjadi `channels.csv`. Fungsi kemudian mengubah nama direktori channel lama menjadi nama channel baru menggunakan `rename_directory`. Jika nama channel yang diubah adalah nama channel yang sedang digunakan oleh client, data client diperbarui dengan nama channel baru dan pesan log dicatat. Akhirnya, fungsi mengirim pesan ke client yang memberitahukan perubahan nama channel.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan pada saat itu, maka secara otomatis akan melakukan update pada client data dan mengirim pesan pada client atas perubahannya.
+```c
+if (strcmp(client->channel, changed) == 0) {
+    // DEBUGGING
+    printf("[%s][EDIT CHANNEL] Channel name self-changed\n", client->username);
+
+    // Update client channel
+    strcpy(client->channel, new);
+
+    // Write to log
+    char message[MAX_BUFFER * 2];
+    sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
+    write_log(new, message);
+
+    // Send response to client
+    sprintf(response, "CHANNEL,Channel name changed to %s,%s", new, new);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 #### Bonus Case 2
+Dalam skenario ini, ketika seorang admin atau root mengubah nama channel yang sedang digunakan oleh user lain, fungsi `edit_channel` memastikan bahwa user yang berada di channel lama akan keluar dari channel tersebut secara aman sebelum proses penggantian nama dilanjutkan. Setelah melakukan pemeriksaan izin dan memperbarui file sementara seperti pada Bonus Case 1, fungsi mengubah nama direktori channel lama menjadi nama channel baru dengan menggunakan `rename_directory`. Selanjutnya, fungsi memeriksa apakah ada user lain yang masih berada di dalam channel yang namanya akan diubah. Jika ada, mereka akan dikeluarkan dari channel tersebut dengan mengirim pesan keluar yang mengosongkan nama channel dan room yang mereka gunakan, sehingga memastikan tidak ada konflik command yang terjadi saat proses perubahan nama channel sedang dilakukan.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-Ketika seorang admin/root melakukan edit pada nama channel yang sedang digunakan oleh user lain, untuk menghindari konflik command, maka user yang sedang berada di dalam nama channel lama akan keluar dari channel secara aman sebelum command berikutnya terkirim.
+```c
+// Check if edited channel is the current channel
+if (strcmp(client->channel, changed) == 0) {
+    // DEBUGGING
+    printf("[%s][EDIT CHANNEL] Channel name self-changed\n", client->username);
+
+    // Update client channel
+    strcpy(client->channel, new);
+
+    // Write to log
+    char message[MAX_BUFFER * 2];
+    sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
+    write_log(new, message);
+
+    // Send response to client
+    sprintf(response, "CHANNEL,Channel name changed to %s,%s", new, new);
+    send(client_fd, response, strlen(response), 0);
+    return;
+} else {
+    // DEBUGGING
+    printf("[%s][EDIT CHANNEL] Channel name changed for another user\n", client->username);
+
+    // If another user is in the channel, send exit message
+    sprintf(response, "EXIT,Channel %s renamed,CHANNEL", changed);
+    send(client_fd, response, strlen(response), 0);
+
+    // Write to log
+    char message[MAX_BUFFER * 2];
+    sprintf(message, "%s changed channel \"%s\" name to \"%s\"\n", client->username, changed, new);
+    write_log(new, message);
+}
+```
+</details>
 
 ### Del Channel
+Fungsi delete_channel digunakan untuk menghapus channel yang ada. Proses ini dimulai dengan memeriksa izin pengguna untuk channel yang akan dihapus menggunakan fungsi check_channel_perms. Jika izin pengguna tidak mencukupi, fungsi akan mengirim pesan error ke client. Jika izin mencukupi, fungsi akan membuka file channels.csv dan file sementara untuk menyimpan data yang telah dimodifikasi. Selanjutnya, fungsi akan membaca setiap entri di channels.csv dan membandingkannya dengan nama channel yang akan dihapus. Jika tidak ditemukan kecocokan, entri lama akan ditulis ulang ke file sementara. Jika ditemukan kecocokan, entri tersebut tidak akan ditulis ulang, menandakan bahwa channel tersebut telah dihapus. Setelah semua entri diproses, file asli channels.csv akan dihapus dan file sementara akan diganti namanya menjadi channels.csv. Kemudian, fungsi akan menghapus direktori channel yang dihapus dengan memanggil remove_directory. Jika channel yang dihapus adalah channel yang sedang digunakan oleh client, fungsi juga akan memperbarui data client untuk mengosongkan nama channel dan room yang sedang digunakan, serta mengirim pesan keluar ke client. Terakhir, fungsi akan mengirim pesan sukses ke client yang menunjukkan bahwa channel telah berhasil dihapus.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-seperti biasa, tapi di akhir ada remove directory
+```c
+//================//
+// DELETE CHANNEL //
+//================//
+
+void delete_channel(char *channel, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check permissions
+    int perms = check_channel_perms(channel, client);
+    if (perms == -1) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: Unable to check permissions\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to check permissions");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: User is not privileged\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not privileged");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } else if (perms == 1) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] User is privileged\n", client->username);
+    }
+
+    // Open channel file
+    FILE *file = fopen(channels_csv, "r");
+
+    // Open temp channel file
+    char temp[MAX_BUFFER * 2];
+    sprintf(temp, "%s/.temp_channel.csv", cwd);
+    FILE *file_temp = fopen(temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through id, channel, and key
+    int id; char channelcheck[MAX_BUFFER], key[MAX_BUFFER];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%s", &id, channelcheck, key) == 3) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] id: %d, channel: %s, key: %s\n", client->username, id, channelcheck, key);
+
+        // Write to temp file
+        if (strcmp(channel, channelcheck) != 0) {
+            fprintf(file_temp, "%d,%s,%s\n", id, channelcheck, key);
+        } else {
+            found = 1;
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Fail if channel is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Error: Channel not found\n", client->username);
+
+        // Remove temp file
+        remove(temp);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Channel not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old channel file and rename temp file
+    remove(channels_csv);
+    rename(temp, channels_csv);
+
+    // Remove channel directory
+    char path_channel[MAX_BUFFER * 2];
+    sprintf(path_channel, "%s/%s", cwd, channel);
+    remove_directory(path_channel);
+
+    // Check if deleted channel is the current channel
+    if (strcmp(client->channel, channel) == 0) {
+        // DEBUGGING
+        printf("[%s][DELETE CHANNEL] Channel current deleted\n", client->username);
+
+        // Update client channel
+        strcpy(client->channel, "");
+
+        // Update client room in case client is in a room
+        strcpy(client->room, "");
+
+        // Send response to client
+        sprintf(response, "EXIT,Channel %s deleted,CHANNEL", channel);
+
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][DELETE CHANNEL] Channel deleted\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Channel %s deleted", channel);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 ### Bonus Case 1: 
 
