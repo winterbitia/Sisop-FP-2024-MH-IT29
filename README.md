@@ -2650,7 +2650,7 @@ void edit_username(char *username, char *newusername, client_data *client) {
 
 #### Bonus Case 1
 Ketika root melakukan pengeditan username dirinya sendiri, proses ini harus secara otomatis mengupdate data client yang tersimpan di server. Selain itu, program client harus menerima pembaruan ini untuk memperbarui tampilan username yang baru. Hal ini memastikan bahwa semua data dan tampilan username tetap konsisten di seluruh sistem.
-##### Pada bagian kode edit_username, kita perlu menambahkan logika untuk mengupdate data client di server dan mengirimkan pesan kepada client untuk memperbarui nama pengguna.
+Pada bagian kode edit_username, kita perlu menambahkan logika untuk mengupdate data client di server dan mengirimkan pesan kepada client untuk memperbarui nama pengguna.
 **Kode**:
 <details>
 <summary><h3>Klik untuk melihat detail</h3>></summary>
@@ -2758,7 +2758,7 @@ void edit_username(char *username, char *newusername, client_data *client) {
 }
 ```
 </details>
-##### Dan Fungsi edit_username_auth mengupdate data nama pengguna di seluruh channel yang terdaftar di auth.csv.
+Dan Fungsi edit_username_auth mengupdate data nama pengguna di seluruh channel yang terdaftar di auth.csv.
 **Kode**:
 <details>
 <summary><h3>Klik untuk melihat detail</h3>></summary>
@@ -2819,8 +2819,115 @@ Ketika seorang user berada dalam sebuah channel, dan seorang root (orang lain) m
 * User akan keluar dari DiscorIT secara aman
 
 ### Editing User (Password)
+Fungsi `edit_password` digunakan untuk mengizinkan admin atau root untuk mengubah kata sandi pengguna yang terdaftar. Pertama, fungsi memeriksa izin pengguna yang meminta perubahan ini. Jika izinnya tidak sesuai, fungsi akan mengirim pesan kesalahan kembali kepada pengguna. Selanjutnya, fungsi membuka file yang berisi data pengguna utama (`users_csv`) untuk mencari username yang diminta. Jika username ditemukan, fungsi akan mengganti password lama dengan yang baru, yang di-hash menggunakan metode kriptografi tertentu untuk keamanan. Data pengguna yang diperbarui disimpan sementara dalam file, kemudian file asli diperbarui dengan yang baru. Jika username tidak ditemukan, operasi akan gagal dan pengguna akan diberitahu bahwa username yang dimaksud tidak terdaftar dalam sistem.
 
-alurnya sama tapi gperlu edit di auth.csv
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//================//
+// EDIT USER PASS //
+//================//
+
+void edit_password(char *username, char *newpassword, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][EDIT PASSWORD] username: %s, newpassword: %s\n", client->username, username, newpassword);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0)
+    // Check if user is editing self
+    if (strcmp(client->username, username) != 0) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open file
+    FILE *file = fopen(users_csv, "r+");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER * 2];
+    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop until username matches
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][EDIT PASSWORD] Success: Username found\n", client->username);
+
+            // Hash new password
+            char hash[MAX_BUFFER];
+            strcpy(hash,crypt(newpassword, HASHCODE));
+
+            // Write new password to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, hash, role);
+            found = 1;
+        } else {
+            // Write old password to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT PASSWORD] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(users_csv);
+    rename(temp_csv, users_csv);
+
+    // DEBUGGING
+    printf("[%s][EDIT PASSWORD] Success: Password edited\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: Password edited");
+    send(client_fd, response, strlen(response), 0);
+    return;    
+}
+```
+</details>
 
 ### Remove User Account
 
