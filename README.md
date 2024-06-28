@@ -3649,7 +3649,6 @@ void delete_channel(char *channel, client_data *client) {
 3. **Klien menerima pesan dan memperbarui status room**:
    - Klien menerima pesan dari server.
    - Klien mengosongkan variabel `room` dan menampilkan pesan kepada pengguna tentang perubahan status room.
-  
 
 ### Bonus Case 2: 
 
