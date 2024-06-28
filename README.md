@@ -2056,7 +2056,7 @@ char* get_timestamp() {
 
     return timestamp;
 }
-    ```
+```
 </details>
 
 ### Send Chat
