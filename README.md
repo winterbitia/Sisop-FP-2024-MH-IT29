@@ -2484,16 +2484,330 @@ void del_chat(int target, client_data *client) {
 ## Root Actions
 
 ### Check User
+Fungsi `check_user` digunakan untuk mengecek apakah sebuah nama user (username) sudah terdaftar dalam sebuah file. Fungsi ini membuka file yang berisi daftar user, memeriksa setiap username dalam file tersebut, dan memberitahu jika username yang dicari ada atau tidak. Hal ini penting untuk memastikan bahwa hanya user yang terdaftar yang bisa menggunakan fitur-fitur tertentu dalam aplikasi, menjaga keamanan dan integritas data.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin alur dan kenapa ini penting
+```c
+//======================//
+// CHECK USER EXISTENCE //
+//======================//
+
+int check_user(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][CHECK USER] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return 0;
+    }
+
+    // Loop through id and username
+    int id; char namecheck[MAX_BUFFER];
+    while (fscanf(file, "%d,%[^,],%*s", &id, namecheck) == 2) {
+        // DEBUGGING
+        printf("[%s][CHECK USER] id: %d, name: %s\n", client->username, id, namecheck);
+
+        // Return 1 if user exists
+        if (strcmp(namecheck, client->username) == 0) {
+            // DEBUGGING
+            printf("[%s][CHECK USER] Success: User exists\n", client->username);
+
+            // Close file
+            fclose(file);
+            return 1;
+        }
+    }
+
+    // Close file
+    fclose(file);
+
+    // DEBUGGING
+    printf("[%s][CHECK USER] Error: User does not exist\n", client->username);
+
+    // Return 0 if user does not exist
+    return 0;
+}
+```
+</details>
 
 ### Editing User (Username)
+Untuk mengedit nama pengguna (username) dalam sistem, fungsi `edit_username` maka pertama, fungsi memeriksa apakah user yang meminta edit adalah admin atau root; jika bukan, maka permintaan akan ditolak. Kemudian, fungsi membuka file yang berisi daftar user untuk memeriksa setiap entri. Selama proses ini, fungsi membandingkan setiap username dengan nama yang ingin diubah. Jika username ditemukan, fungsi menulis entri baru dengan username yang baru ke dalam file sementara, sementara entri yang lain tetap menggunakan username yang lama. Setelah selesai, file asli dihapus dan file sementara diganti namanya menjadi file utama, sehingga perubahan tersimpan. Jika username yang dicari tidak ditemukan dalam file, fungsi akan mengirimkan pesan kesalahan ke user. Setelah proses utama selesai, fungsi memanggil `edit_username_auth` untuk melakukan pembaruan username di seluruh channel yang tersimpan dalam file `auth.csv`. Proses ini penting untuk memastikan konsistensi username di seluruh sistem, memungkinkan user untuk terus menggunakan aplikasi dengan nama yang baru.
 
-jelasin sistem edit username, alurnya mirip edit chat, tapi ini ada alur tambahan buat ngeloop lewat auth.csv semua channel buat dicari nama sebelumnya buat diubah
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//================//
+// EDIT USER NAME //
+//================//
+
+void edit_username(char *username, char *newusername, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] username: %s, newusername: %s\n", client->username, username, newusername);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0)
+    // Check if user is editing self
+    if (strcmp(client->username, username) != 0) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER * 2];
+    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop until username matches
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][EDIT USERNAME] Success: Username found\n", client->username);
+
+            // Write new username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, newusername, passcheck, role);
+            found = 1;
+        } else {
+            // Write old username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(users_csv);
+    rename(temp_csv, users_csv);
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] Success: Main username edited\n", client->username);
+
+    // Call edit_username_auth
+    edit_username_auth(username, newusername, client);
+    return;
+}
+```
+</details>
 
 #### Bonus Case 1
+Ketika root melakukan pengeditan username dirinya sendiri, proses ini harus secara otomatis mengupdate data client yang tersimpan di server. Selain itu, program client harus menerima pembaruan ini untuk memperbarui tampilan username yang baru. Hal ini memastikan bahwa semua data dan tampilan username tetap konsisten di seluruh sistem.
+##### Pada bagian kode edit_username, kita perlu menambahkan logika untuk mengupdate data client di server dan mengirimkan pesan kepada client untuk memperbarui nama pengguna.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-Ketika root melakukan edit pada username diri sendiri, maka akan secara otomatis update data client yang tersimpan di server dan juga mengirim pesan ke program client untuk mengubah nama.
+```c
+//================//
+// EDIT USER NAME //
+//================//
+
+void edit_username(char *username, char *newusername, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] username: %s, newusername: %s\n", client->username, username, newusername);
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is admin or root
+    if (strcmp(client->role, "USER") == 0)
+    // Check if user is editing self
+    if (strcmp(client->username, username) != 0) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+    // Open file
+    FILE *file = fopen(users_csv, "r");
+
+    // Open temp file
+    char temp_csv[MAX_BUFFER * 2];
+    sprintf(temp_csv, "%s/.temp_users.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop until username matches
+    int id; char namecheck[MAX_BUFFER], passcheck[MAX_BUFFER], role[8];
+    int found = 0;
+    while (fscanf(file, "%d,%[^,],%[^,],%s", &id, namecheck, passcheck, role) == 4) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] id: %d, name: %s, pass: %s, role: %s\n", client->username, id, namecheck, passcheck, role);
+
+        // Check if username matches
+        if (strcmp(namecheck, username) == 0) {
+            // DEBUGGING
+            printf("[%s][EDIT USERNAME] Success: Username found\n", client->username);
+
+            // Write new username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, newusername, passcheck, role);
+            found = 1;
+            // Update client data
+            strcpy(client->username, newusername);
+            // Inform the client to update their display name
+            char msg[MAX_BUFFER];
+            sprintf(msg, "MSG,Your username has been changed to %s", newusername);
+            send(client_fd, msg, strlen(msg), 0);
+        } else {
+            // Write old username to temp file
+            fprintf(temp, "%d,%s,%s,%s\n", id, namecheck, passcheck, role);
+        }
+    }
+
+    // Close files
+    fclose(file);
+    fclose(temp);
+
+    // Fail if username does not match
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME] Error: Username not found\n", client->username);
+
+        // Remove temp file
+        remove(temp_csv);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Username not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Remove old file and rename temp file
+    remove(users_csv);
+    rename(temp_csv, users_csv);
+
+    // DEBUGGING
+    printf("[%s][EDIT USERNAME] Success: Main username edited\n", client->username);
+
+    // Call edit_username_auth
+    edit_username_auth(username, newusername, client);
+    return;
+}
+```
+</details>
+##### Dan Fungsi edit_username_auth mengupdate data nama pengguna di seluruh channel yang terdaftar di auth.csv.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+void edit_username_auth(char *username, char *newusername, client_data *client) {
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Open auth file
+    FILE *file = fopen(auth_csv, "r");
+    // Open temp file
+    char temp_csv[MAX_BUFFER * 2];
+    sprintf(temp_csv, "%s/.temp_auth.csv", cwd);
+    FILE *temp = fopen(temp_csv, "w");
+
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT USERNAME AUTH] Error: Unable to open auth file\n", client->username);
+        sprintf(response, "MSG,Error: Unable to open auth file");
+        send(client->socket_fd, response, strlen(response), 0);
+        return;
+    }
+
+    int id; char channel[MAX_BUFFER], user[MAX_BUFFER];
+    while (fscanf(file, "%d,%[^,],%s", &id, channel, user) == 3) {
+        // Check for username to update
+        if (strcmp(user, username) == 0) {
+            fprintf(temp, "%d,%s,%s\n", id, channel, newusername);
+        } else {
+            fprintf(temp, "%d,%s,%s\n", id, channel, user);
+        }
+    }
+
+    fclose(file);
+    fclose(temp);
+
+    remove(auth_csv);
+    rename(temp_csv, auth_csv);
+
+    // Update all channels
+    update_channels(username, newusername);
+
+    // Notify all clients
+    sprintf(response, "MSG,Your username has been changed to %s", newusername);
+    send(client->socket_fd, response, strlen(response), 0);
+}
+```
+</details>
 
 #### Bonus Case 2
 
