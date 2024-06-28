@@ -1547,6 +1547,10 @@ void handle_input(void *arg){
 ```
 </details>
 
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256177652671315988/Screenshot_1972.png?ex=667fd21b&is=667e809b&hm=25593a966eeecd68228983e965fb2f37ce2f98d30189d51e3e05a4b3a53d0cc2&=&format=webp&quality=lossless&width=866&height=321)
+
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256177694295588894/Screenshot_1973.png?ex=667fd224&is=667e80a4&hm=05325dd64171f7a9694d15562a9c8fb1a3f37d304fe90cbd5b3eeaf0a3d8affe&=&format=webp&quality=lossless&width=911&height=399)
+
 # Penggunaan DiscorIT
 
 ## Listing
@@ -1779,6 +1783,8 @@ void list_user(client_data *client) {
 }
 ```
 </details>
+
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256182781642543124/Screenshot_1974.png?ex=667fd6e1&is=667e8561&hm=3ecc3291947e450a2137ac9b486d5a092ade187780ed68f0f2933939463a6f91&=&format=webp&quality=lossless&width=785&height=380)
 
 ## Joining
 
@@ -2481,6 +2487,10 @@ void del_chat(int target, client_data *client) {
 ```
 </details>
 
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256190862434504776/IMG-20240622-WA0058.jpg?ex=667fde68&is=667e8ce8&hm=9d7fc1e2b65922b61ae06f06ab0c4bf6ce898a4062869570b98cc52b9bb3d95f&=&format=webp&width=1166&height=656)
+
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256190862891814953/IMG-20240623-WA0003.jpg?ex=667fde68&is=667e8ce8&hm=b5d2d8bacdeefd532ca61ba8117eda09e728348ffa695dd9e8483e34804251fc&=&format=webp&width=600&height=583)
+
 ## Root Actions
 
 ### Check User
@@ -3058,6 +3068,10 @@ void remove_user(char *username, client_data *client) {
 }
 ```
 </details>
+
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256190055261802557/IMG-20240623-WA0010.jpg?ex=667fdda8&is=667e8c28&hm=55f9ca1858d57650688754863a3874c3c8c72c1c359be5faba01c262dae8be79&=&format=webp&width=653&height=656)
+
+![alt text](https://media.discordapp.net/attachments/1256171847284953088/1256190055563661403/IMG-20240623-WA0011.jpg?ex=667fdda8&is=667e8c28&hm=4a2b97ca5e42b49230f7cb180b20c2e9a9050f3521f1d32ec59d649716f8417b&=&format=webp&width=967&height=656)
 
 #### Bonus Case 1
 
