@@ -1621,49 +1621,865 @@ void list_channel(client_data *client) {
 </details>
 
 ### Room
+Proses listing room dilakukan dengan membaca semua folder dalam sebuah channel kecuali folder yang bernama "admin". Pertama, sistem memeriksa apakah user sudah berada dalam suatu channel. Jika belum, sistem mengirimkan pesan kesalahan kepada client. Kemudian, sistem menyiapkan path ke channel yang sedang digunakan oleh user dan membuka direktori channel tersebut. Jika direktori tidak bisa dibuka, sistem kembali mengirimkan pesan kesalahan. Setelah berhasil membuka direktori, sistem melakukan iterasi melalui setiap entry di dalam direktori tersebut, melewatkan entry yang bernama "." dan "..". Sistem juga melewatkan entry dengan nama "admin". Untuk setiap entry yang merupakan direktori, sistem menambahkan nama direktori tersebut ke dalam string respon. Setelah iterasi selesai, direktori ditutup dan sistem mengirimkan string respon yang berisi daftar nama-nama room kepada client. Jika tidak ada room yang ditemukan, sistem mengirimkan pesan bahwa tidak ada room yang ditemukan.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin kalo alurnya itu baca semua folder dalam sebuah channel yang namanya selain admin
+```c
+//============//
+// LIST ROOMS //
+//============//
+
+void list_room(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][LIST ROOM] Error: User is not in a channel\n", client->username);
+
+        // Prepare response
+        char response[MAX_BUFFER * 2];
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare channel path
+    char path_channel[MAX_BUFFER * 2];
+    sprintf(path_channel, "%s/%s", cwd, client->channel);
+
+    // Prepare response
+    char response[MAX_BUFFER * 2];
+    sprintf(response, "MSG,");
+    int rooms_found = 0;
+
+    // Open channel directory
+    DIR *dir = opendir(path_channel);
+
+    // Fail if directory cannot be opened
+    if (dir == NULL) {
+        // DEBUGGING
+        printf("[%s][LIST ROOM] Error: Unable to open directory\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open directory");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip . and ..
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) continue;
+
+        // DEBUGGING
+        printf("[%s][LIST ROOM] Room: %s\n", client->username, entry->d_name);
+
+        // Skip admin directory
+        if (strcmp(entry->d_name, "admin") == 0) continue;
+
+        // Prepare entry path
+        char entry_path[MAX_BUFFER * 3];
+        sprintf(entry_path, "%s/%s", path_channel, entry->d_name);
+
+        // Check if entry is a directory to be listed
+        struct stat statbuf;
+        if (stat(entry_path, &statbuf) == -1) continue;
+        if (S_ISDIR(statbuf.st_mode)) {
+            // Increment rooms found
+            rooms_found++;
+
+            // Concatenate response
+            if (rooms_found > 1) strcat(response, " ");
+            strcat(response, entry->d_name);
+        }   
+    }
+
+    // Close directory
+    closedir(dir);
+
+    // DEBUGGING
+    printf("[%s][LIST ROOM] Rooms found: %d\n", client->username, rooms_found);
+
+    // Send response to client
+    if (rooms_found == 0) {
+        sprintf(response, "MSG,No rooms found");
+        send(client_fd, response, strlen(response), 0);
+    } else {
+        send(client_fd, response, strlen(response), 0);
+    }
+
+    return;
+}
+```
+</details>
 
 ### User
+Proses listing user dilakukan dengan membaca file auth.csv dan hanya bisa dijalankan oleh user dengan peran "ROOT". Pertama, sistem memeriksa apakah user yang menjalankan perintah memiliki peran "ROOT". Jika tidak, sistem mengirimkan pesan kesalahan kepada client. Jika user adalah "ROOT", sistem membuka file auth.csv yang menyimpan data pengguna. Jika file tidak bisa dibuka, sistem mengirimkan pesan kesalahan. Setelah file berhasil dibuka, sistem melakukan iterasi melalui setiap baris dalam file, mengambil nama pengguna dan menambahkannya ke dalam string respon. Setelah iterasi selesai, file ditutup dan sistem mengirimkan string respon yang berisi daftar nama pengguna kepada client.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin kalo alurnya dari auth.csv channel yang sedang dipakai user yang keluarin command
+```c
+//============//
+// LIST USERS //
+//============//
+
+void list_user(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER * 2];
+    sprintf(response, "MSG,");
+
+    // Check if user is not root
+    if (strcmp(client->role, "ROOT") != 0) {
+        // DEBUGGING
+        printf("[%s][LIST USER] Error: User is not root\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not root");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open users file
+    FILE *file = fopen(users_csv, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][LIST USER] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through username
+    char namecheck[MAX_BUFFER];
+    while (fscanf(file, "%*d,%[^,],%*[^,],%*s)", namecheck) == 1) {
+        // DEBUGGING
+        printf("[%s][LIST USER] User: %s\n", client->username, namecheck);
+
+        // Concatenate response
+        if (strcmp(response, "MSG,") != 0) strcat(response, " ");
+        strcat(response, namecheck);
+    }
+
+    // Close file
+    fclose(file);
+
+    // Send response to client
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 ## Joining
 
 ### Channel
 
-jelasin alurnya mulai dari ngecek kedudukan user dari auth
-* kalo banned skip
-* kalo terdaftar lgsg masuk
-* kalo ga terdaftar tapi
-    * root, langsung masuk
-    * else harus minta verifikasi (jelasin teknis cara kerjanya, jelasin juga kalo monitor gaboleh masukin key)
+Proses bergabung ke channel pada DiscorIT diawali dengan pengecekan apakah channel yang ingin dimasuki user ada dengan memanggil fungsi check_channel. Jika channel tidak ada, sistem mengirim pesan kesalahan. Setelah memastikan channel ada, sistem membuka file auth.csv yang berada di folder admin dari channel tersebut. File ini digunakan untuk mengecek status user. Pertama, sistem membaca file auth.csv dan memeriksa apakah user sudah terdaftar. Jika user terdaftar dan berstatus "BANNED", sistem mengirim pesan kesalahan dan tidak mengizinkan user masuk. Jika user terdaftar dan tidak berstatus "BANNED", sistem memperbolehkan user masuk ke channel dan mencatat aksi tersebut di log. Jika user tidak terdaftar di auth.csv dan memiliki peran "ROOT", sistem langsung menambahkan user sebagai "ROOT" di channel tersebut dan memperbarui file auth.csv. Namun, jika user tidak terdaftar dan bukan "ROOT", sistem akan meminta verifikasi kunci (key) melalui fungsi verify_key. Jika verifikasi berhasil, user ditambahkan ke channel dengan status "USER" dan aksi ini juga dicatat di log. Monitor tidak boleh memasukkan kunci verifikasi.
+
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+
+//==============//
+// JOIN CHANNEL //
+//==============//
+
+void join_channel(char *channel, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER * 2];
+    sprintf(response, "MSG,");
+
+    // Check if channel exists
+    if (check_channel(channel, client) != -2) {
+        // DEBUGGING
+        printf("[%s][JOIN CHANNEL] Error: Channel does not exist\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Channel does not exist");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Open auth of current channel
+    char path_auth[MAX_BUFFER * 2];
+    sprintf(path_auth, "%s/%s/admin/auth.csv", cwd, channel);
+    FILE *file = fopen(path_auth, "a+");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][JOIN CHANNEL] Error: Unable to open auth file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open auth file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through username and role
+    char username[MAX_BUFFER]; char role[8];
+    while (fscanf(file, "%*d,%[^,],%s", username, role) == 2) {
+        // DEBUGGING
+        printf("[%s][JOIN CHANNEL] username: %s, role: %s\n", client->username, username, role);
+
+        // If there is a username match or user is root
+        if (strcmp(client->username, username) == 0) {
+            // Check if user is banned
+            if (strcmp(role, "BANNED") == 0) {
+                // DEBUGGING
+                printf("[%s][JOIN CHANNEL] Error: User is banned from %s\n", client->username, channel);
+
+                // Close file
+                fclose(file);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is banned from channel");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            // DEBUGGING
+            printf("[%s][JOIN CHANNEL] Success: User joined %s\n", client->username, channel);
+
+            // Close file
+            fclose(file);
+
+            // Update client channel
+            strcpy(client->channel, channel);
+
+            // Write to log
+            char message[MAX_BUFFER * 2];
+            sprintf(message, "%s joined channel \"%s\"\n", client->username, channel);
+            write_log(channel, message);
+
+            // Send response to client
+            if (strcmp(client->role, "ROOT") == 0)
+                sprintf(response, "CHANNEL,Joined channel %s as ROOT,%s", channel, channel);
+            else
+                sprintf(response, "CHANNEL,Joined channel %s,%s", channel, channel);
+            send(client_fd, response, strlen(response), 0);
+            return;
+        }
+    }
+
+    // Add user to channel if user is root and not listed
+    if (strcmp(client->role, "ROOT") == 0) {
+        // Open auth of current channel and add user
+        fprintf(file, "%d,%s,ROOT\n", client->id, client->username);
+
+        // DEBUGGING
+        printf("[%s][JOIN CHANNEL] Success: Root joined %s\n", client->username, channel);
+
+        // Close file
+        fclose(file);
+
+        // Update client channel
+        strcpy(client->channel, channel);
+
+        // Write to log
+        char message[MAX_BUFFER * 2];
+        sprintf(message, "%s joined channel \"%s\" as ROOT\n", client->username, channel);
+        write_log(channel, message);
+
+        // Send response to client
+        sprintf(response, "CHANNEL,Joined channel %s as ROOT,%s", channel, channel);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Verify key if user is not listed
+    if (verify_key(channel, client) == 1) {
+        // Open auth of current channel and add user
+        fprintf(file, "%d,%s,USER\n", client->id, client->username);
+
+        // DEBUGGING
+        printf("[%s][JOIN CHANNEL] Success: User joined %s\n", client->username, channel);
+
+        // Close file
+        fclose(file);
+
+        // Update client channel
+        strcpy(client->channel, channel);
+
+        // Write to log
+        char message[MAX_BUFFER * 2];
+        sprintf(message, "%s verified for channel \"%s\"\n", client->username, channel);
+        write_log(channel, message);
+
+        // Send response to client
+        sprintf(response, "CHANNEL,Joined channel %s,%s", channel, channel);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Close file
+    fclose(file);
+
+    // Send response to client
+    sprintf(response, "MSG,Error: Key verification failure");
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 ### Room
+Proses join room dimulai dengan pengecekan apakah user mencoba masuk ke room dengan nama "admin", yang tidak diizinkan, dan akan menghasilkan pesan kesalahan. Selanjutnya, sistem memeriksa apakah user sudah berada dalam suatu channel; jika belum, maka akan mengirim pesan kesalahan. Setelah memastikan user berada di dalam channel, sistem memeriksa keberadaan room yang ingin dimasuki user dengan mengecek direktori yang sesuai. Jika room tidak ada, sistem mengirim pesan kesalahan. Jika room ada dan user belum berada dalam room lain, sistem akan mengizinkan user untuk bergabung dengan room tersebut. Nama room akan disimpan dalam atribut room pada client_data, dan tindakan ini akan dicatat dalam log channel. Sebagai respon, sistem akan mengirim pesan ke user bahwa user telah berhasil bergabung dengan room tersebut. Jika user sudah berada dalam room lain, sistem akan mengirim pesan kesalahan bahwa user sudah berada dalam room dan tidak dapat bergabung dengan room baru tanpa keluar dari room sebelumnya.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin alurnya ini cukup simple 
+```c
+//===========//
+// JOIN ROOM //
+//===========//
+
+void join_room(char *room, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is trying to join admin
+    if (strcmp(room, "admin") == 0) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Error: Invalid room name\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Invalid room name");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if user is in a channel
+    if (strlen(client->channel) == 0) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Error: User is not in a channel\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a channel");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if room exists
+    char path_room[MAX_BUFFER * 2];
+    sprintf(path_room, "%s/%s/%s", cwd, client->channel, room);
+    struct stat statbuf;
+    if (stat(path_room, &statbuf) == -1) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Error: Room does not exist\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Room does not exist");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Join room if user is not in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][JOIN ROOM] Success: User joined %s\n", client->username, room);
+
+        // Update client room
+        strcpy(client->room, room);
+
+        // Write to log
+        char message[MAX_BUFFER * 2];
+        sprintf(message, "%s joined room \"%s\"\n", client->username, room);
+        write_log(client->channel, message);
+
+        // Send response to client
+        sprintf(response, "ROOM,Joined room %s,%s", room, room);
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][JOIN ROOM] Error: User is already in a room\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,Error: User is already in a room");
+    send(client_fd, response, strlen(response), 0);
+}
+```
+</details>
 
 ## Chatting
 
 ### Get Timestamp
+Fungsi `get_timestamp()` adalah fungsi pendukung yang esensial dalam sistem chat karena menghasilkan timestamp yang digunakan untuk merekam waktu pengiriman chat dalam room chat. Saat digunakan dalam konteks aplikasi chat, timestamp ini bertindak sebagai penanda waktu yang menunjukkan kapan chat dikirim. Prosesnya dimulai dengan memanggil fungsi `time(&rawtime)`, yang mengambil waktu saat ini dari sistem dan menyimpannya dalam variabel `rawtime` bertipe `time_t`. Selanjutnya, fungsi `localtime(&rawtime)` mengkonversi waktu dalam `rawtime` ke dalam struktur `struct tm`, yang berisi informasi terperinci tentang tahun, bulan, hari, jam, menit, dan detik dalam zona waktu lokal user.
 
-jelasin ini fungsi pendukung banyak fitur
+Setelah memperoleh struktur waktu melalui `localtime`, fungsi `strftime(timestamp, MAX_BUFFER, "%d/%m/%Y %H:%M:%S", timeinfo)` digunakan untuk memformat informasi waktu tersebut ke dalam string `timestamp` dengan format "dd/mm/yyyy HH:MM:SS". String `timestamp` yang dihasilkan kemudian digunakan untuk mencatat waktu pengiriman setiap chat yang dikirimkan dalam room chat. Ini penting karena memungkinkan user untuk melihat urutan chat dan waktu pengirimannya, serta memungkinkan administrator atau user lain untuk memantau aktivitas chat secara kronologis. Oleh karena itu, fungsi `get_timestamp()` tidak hanya menyediakan data waktu tetapi juga mendukung fungsionalitas sistem yang mengandalkan urutan waktu untuk mengelola dan mempresentasikan dialog dalam aplikasi chat.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+    // Get timestamp
+    char *timestamp = get_timestamp();
+    fprintf(file, "%s,%d,%s,%s\n", timestamp, id+1, client->username, message);
+    ```
+</details>
+
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//===============//
+// GET TIMESTAMP //
+//===============//
+
+char* get_timestamp() {
+    time_t rawtime;
+    struct tm *timeinfo;
+    char *timestamp = (char *)malloc(sizeof(char) * MAX_BUFFER);
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    strftime(timestamp, MAX_BUFFER, "%d/%m/%Y %H:%M:%S", timeinfo);
+
+    return timestamp;
+}
+    ```
+</details>
 
 ### Send Chat
+Proses send chat dimulai dengan pengecekan apakah user berada dalam sebuah room. Jika user tidak berada dalam room, sistem akan mengirim pesan kesalahan. Jika user berada dalam room, sistem mempersiapkan path file chat.csv di dalam direktori room tersebut. Sistem kemudian membuka file chat.csv untuk menambahkan pesan baru. Jika file tidak bisa dibuka, sistem mengirim pesan kesalahan. Namun, jika file berhasil dibuka, sistem membaca file untuk mendapatkan ID terakhir dari pesan yang ada. Setelah itu, sistem mengambil timestamp saat ini dan menambahkan pesan baru dengan format timestamp, ID, username, message ke file chat.csv. Setelah pesan berhasil ditambahkan, file ditutup, dan sistem mengirim pesan sukses ke user yang berisi timestamp, ID, dan username dari pesan yang baru dikirim.
 
-jelasin alur chat masuk ke csv
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
+
+```c
+//================//
+// SEND CHAT DATA //
+//================//
+
+void send_chat(char *message, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_CHAT];
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][SEND CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER * 2];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+
+    // Open chat file
+    FILE *file = fopen(path_chat, "a+");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][SEND CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Loop through csv to get ID
+    int id = 0;
+    while (fscanf(file, "%*[^,],%d,%*[^,],%*[^\n]", &id) == 1) {
+        // DEBUGGING
+        printf("[%s][SEND CHAT] id: %d\n", client->username, id);
+    }
+
+    // Get timestamp
+    char *timestamp = get_timestamp();
+    fprintf(file, "%s,%d,%s,%s\n", timestamp, id+1, client->username, message);
+
+    // Close file
+    fclose(file);
+
+    // DEBUGGING
+    printf("[%s][SEND CHAT] Success: Chat sent\n", client->username);
+
+    // Send response to client
+    sprintf(response, "MSG,[%s][%d][%s][SENT]", timestamp, id+1, client->username);
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 ### See Chat
+Proses see chat dimulai dengan pengecekan apakah user berada dalam sebuah room. Jika user tidak berada dalam room, sistem akan mengirim pesan kesalahan. Jika user berada dalam room, sistem mempersiapkan path file chat.csv di dalam direktori room tersebut dan membuka file tersebut untuk membaca pesan-pesan yang ada. Jika file tidak bisa dibuka, sistem mengirim pesan kesalahan. Namun, jika file berhasil dibuka, sistem akan memeriksa apakah file chat kosong. Jika kosong, sistem mengirim pesan kesalahan bahwa chat kosong. Jika file tidak kosong, sistem membaca isi file chat satu per satu dan menggabungkan pesan-pesan tersebut ke dalam satu respons yang akan dikirim ke user. Jika ukuran respons terlalu besar, proses penggabungan pesan akan dihentikan untuk menghindari pengiriman data yang terlalu besar. Setelah semua pesan yang bisa ditampilkan digabungkan, file ditutup, dan sistem mengirimkan respons berisi pesan-pesan chat ke user.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin ini baca dari csv
+```c
+//===============//
+// SEE CHAT DATA //
+//===============//
+
+void see_chat(client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare larger response for chat
+    char chat[MAX_BUFFER+256];
+    char response[MAX_CHAT];
+    sprintf(response, "MSG,");
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][SEE CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER * 2];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+
+    // Open chat file
+    FILE *file = fopen(path_chat, "r");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][SEE CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Check if chat is empty
+    fseek(file, 0, SEEK_END);
+    if (ftell(file) == 0) {
+        // DEBUGGING
+        printf("[%s][SEE CHAT] Error: Chat is empty\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Chat is empty");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+    fseek(file, 0, SEEK_SET);
+
+    // Loop through csv to get messages
+    int id; char timestamp[20], username[100], message[MAX_BUFFER];
+    while (fscanf(file, " %[^,],%d,%[^,],%[^\n]",
+           timestamp, &id, username, message) == 4) {
+        // DEBUGGING
+        printf("[%s][SEE CHAT] [%s][%d][%s] %s\n", client->username, timestamp, id, username, message);
+
+        // Prepare chat send
+        snprintf(chat, sizeof(chat), "[%s][%d][%s] %s", timestamp, id, username, message);
+
+        // Break if response is too large
+        if (strlen(response) + strlen(chat) + 2 > sizeof(response)) break;
+
+        // Concatenate response with chat
+        if (strlen(response) > 4) strcat(response, "\n");
+        strcat(response, chat);
+    }
+
+    // Close file
+    fclose(file);
+
+    // Send response to client
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 ### Edit Chat
+Dalam fungsi `edit_chat`, proses edit dilakukan dengan cara membaca setiap baris dari file `chat.csv` dan menyalinnya ke sebuah file sementara (`temp_file`) kecuali baris yang sesuai dengan ID yang ingin diubah. Pada tahap ini, sistem memeriksa peran user (`client->role`). Jika user memiliki peran `ROOT` atau `ADMIN`, mereka diizinkan untuk mengedit semua pesan dalam room tersebut. Namun, jika user memiliki peran `USER`, sistem memastikan bahwa mereka hanya dapat mengedit pesan yang mereka tulis sendiri dengan memeriksa username yang terkait dengan pesan. Proses ini memastikan bahwa hanya pesan yang sesuai dengan aturan perizinan yang diizinkan untuk diedit, sesuai dengan kebutuhan dan keamanan sistem. Setelah edit selesai, file sementara digunakan untuk mengganti file `chat.csv` asli, dan informasi edit dicatat dalam log sistem sebelum memberikan respons sukses kepada user.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-jelasin cara kerja edit di temp_file di loop ganti yang sesuai idnya, buat permission root/admin boleh edit semua chat, else cuman boleh edit punya diri sendiri
+```c
+//================//
+// EDIT CHAT DATA //
+//================//
+
+void edit_chat(int edit, char *message, client_data *client){
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER * 2];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+    FILE *file = fopen(path_chat, "r");
+
+    // Prepare temp path
+    char path_temp[MAX_BUFFER * 2];
+    sprintf(path_temp, "%s/%s/%s/.chat_temp.csv", cwd, client->channel, client->room);
+    FILE *file_temp = fopen(path_temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][EDIT CHAT] id: %d, message: %s\n", client->username, edit, message);
+
+    // Loop until id matches
+    int id; char timestamp[20], username[100], message_old[MAX_BUFFER];
+    char buffer[MAX_CHAT];
+    int found = 0;
+    while (fgets(buffer, MAX_BUFFER, file) != NULL) {
+        // Get data from buffer
+        sscanf(buffer, "%[^,],%d,%[^,],%[^\n]", timestamp, &id, username, message_old);
+
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] id: %d, username: %s, message: %s\n", client->username, id, username, message_old);
+
+        // Edit if id matches
+        if (id == edit){
+            // Check if user is not admin/root
+            if (strcmp(client->role, "USER") == 0)
+            // Check if user is not the author
+            if (strcmp(client->username, username) != 0) {
+                // DEBUGGING
+                printf("[%s][EDIT CHAT] Error: User is not admin/root\n", client->username);
+
+                // Close files
+                fclose(file);
+                fclose(file_temp);
+
+                // Unlink temp file
+                remove(path_temp);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is not admin/root");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            found = 1;
+            fprintf(file_temp, "%s,%d,%s,%s\n", timestamp, id, username, message);
+            continue;
+        }
+
+        // Write to temp file
+        fprintf(file_temp, "%s", buffer);
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Check if id is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][EDIT CHAT] Error: ID not found\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: ID not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } 
+
+    // DEBUGGING
+    printf("[%s][EDIT CHAT] Success: ID edited\n", client->username);
+
+    // Remove original file
+    remove(path_chat);
+
+    // Rename temp file
+    rename(path_temp, path_chat);
+
+    // Write to log
+    char log[MAX_BUFFER * 2];
+    sprintf(log, "%s edited chat id %d in \"%s\": %s\n", client->username, edit, client->room, message);
+    write_log(client->channel, log);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: ID edited");
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 ### Delete Chat
+Fungsi `del_chat` digunakan untuk menghapus chat dalam sebuah room chat berdasarkan ID tertentu. Pertama, fungsi memeriksa apakah user sedang berada di room chat tersebut. Jika tidak, fungsi akan memberitahu user bahwa mereka harus berada di room chat untuk melakukan penghapusan. Selanjutnya, fungsi membuka file tempat chat disimpan dan membuat file sementara untuk menyimpan hasil edit. Kemudian, fungsi membaca setiap chat dalam file chat. Ketika menemukan chat dengan ID yang sesuai dengan yang diminta untuk dihapus, fungsi memeriksa izin user: jika user adalah admin atau root, mereka dapat menghapus chat apa pun; jika hanya user biasa, mereka hanya bisa menghapus chat yang mereka tulis sendiri. Setelah menemukan chat yang sesuai untuk dihapus, chat tersebut tidak disalin ke file sementara, sehingga dihapus dari file asli. Jika ID yang diminta untuk dihapus tidak ditemukan, fungsi akan memberitahu user bahwa ID tersebut tidak ada dalam room chat. Setelah menghapus chat, file asli chat diperbarui dengan file sementara yang berisi perubahan, dan kegiatan penghapusan dicatat dalam log sistem. Akhirnya, user diberi tahu bahwa penghapusan berhasil dilakukan.
+**Kode**:
+<details>
+<summary><h3>Klik untuk melihat detail</h3>></summary>
 
-sama kaya edit cuman cara kerjanya pas di temp_file di skip kalo ketemu id yang sama
+```c
+//================//
+// DELETE CHAT ID //
+//================//
+
+void del_chat(int target, client_data *client) {
+    int client_fd = client->socket_fd;
+
+    // Prepare response
+    char response[MAX_BUFFER];
+
+    // Check if user is in a room
+    if (strlen(client->room) == 0) {
+        // DEBUGGING
+        printf("[%s][DEL CHAT] Error: User is not in a room\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: User is not in a room");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // Prepare chat path
+    char path_chat[MAX_BUFFER * 2];
+    sprintf(path_chat, "%s/%s/%s/chat.csv", cwd, client->channel, client->room);
+    FILE *file = fopen(path_chat, "r");
+
+    // Prepare temp path
+    char path_temp[MAX_BUFFER * 2];
+    sprintf(path_temp, "%s/%s/%s/.chat_temp.csv", cwd, client->channel, client->room);
+    FILE *file_temp = fopen(path_temp, "w");
+
+    // Fail if file cannot be opened
+    if (file == NULL) {
+        // DEBUGGING
+        printf("[%s][DEL CHAT] Error: Unable to open file\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: Unable to open file");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    }
+
+    // DEBUGGING
+    printf("[%s][DEL CHAT] id: %d\n", client->username, target);
+
+    // Loop until id matches
+    int id; char username[MAX_BUFFER], message[MAX_BUFFER];
+    char buffer[MAX_CHAT];
+    int found = 0;
+    while (fgets(buffer, MAX_BUFFER, file) != NULL) {
+        // Get data from buffer
+        sscanf(buffer, "%*[^,],%d,%[^,],%[^\n]", &id, username, message);
+
+        // DEBUGGING
+        printf("[%s][DEL CHAT] id: %d, username: %s\n", client->username, id, username);
+
+        // Skip if id matches
+        if (id == target){
+            // Check if user is not admin/root
+            if (strcmp(client->role, "USER") == 0)
+            // Check if user is not the author
+            if (strcmp(client->username, username) != 0) {
+                // DEBUGGING
+                printf("[%s][DEL CHAT] Error: User is not admin/root\n", client->username);
+
+                // Close files
+                fclose(file);
+                fclose(file_temp);
+
+                // Unlink temp file
+                remove(path_temp);
+
+                // Send response to client
+                sprintf(response, "MSG,Error: User is not admin/root");
+                send(client_fd, response, strlen(response), 0);
+                return;
+            }
+
+            found = 1;
+            continue;
+        }
+
+        // Write to temp file
+        fprintf(file_temp, "%s", buffer);
+    }
+
+    // Close files
+    fclose(file);
+    fclose(file_temp);
+
+    // Check if id is not found
+    if (found == 0) {
+        // DEBUGGING
+        printf("[%s][DEL CHAT] Error: ID not found\n", client->username);
+
+        // Send response to client
+        sprintf(response, "MSG,Error: ID not found");
+        send(client_fd, response, strlen(response), 0);
+        return;
+    } 
+
+    // DEBUGGING
+    printf("[%s][DEL CHAT] Success: ID deleted\n", client->username);
+
+    // Remove original file
+    remove(path_chat);
+
+    // Rename temp file
+    rename(path_temp, path_chat);
+
+    // Write to log
+    char log[MAX_BUFFER * 3];
+    sprintf(log, "%s deleted chat id %d in \"%s\": \"%s\"\n", client->username, target, client->room, message);
+    write_log(client->channel, log);
+
+    // Send response to client
+    sprintf(response, "MSG,Success: ID deleted");
+    send(client_fd, response, strlen(response), 0);
+    return;
+}
+```
+</details>
 
 ## Root Actions
 
